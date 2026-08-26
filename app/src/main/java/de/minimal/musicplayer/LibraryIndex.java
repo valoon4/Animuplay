@@ -19,7 +19,7 @@ import java.util.List;
 /** Persistent metadata index so unchanged files do not need to be parsed again. */
 final class LibraryIndex {
     private static final int MAGIC = 0x4D4D5031; // "MMP1"
-    private static final int FORMAT_VERSION = 2;
+    private static final int FORMAT_VERSION = 3;
     private static final int MAX_SONGS = 500_000;
     private static final int MAX_STRING_BYTES = 1024 * 1024;
     private static final String FILE_NAME = "music-library-index.bin";
@@ -49,9 +49,14 @@ final class LibraryIndex {
                 String artist = readString(input);
                 String album = readString(input);
                 String genre = readString(input);
-                // v0.11 used index format 1 and did not persist the Year tag. An
-                // empty value marks that entry for one-time background enrichment.
+                // Format 1 (v0.11) did not persist Year. Format 2 (v0.12.0)
+                // persisted Android's failed lookup as "Unbekannt" for many FLACs.
+                // Turn those old false negatives back into empty values exactly once,
+                // so the normal background enrichment path re-reads their real tags.
                 String year = formatVersion >= 2 ? readString(input) : "";
+                if (formatVersion < 3 && "Unbekannt".equalsIgnoreCase(year.trim())) {
+                    year = "";
+                }
                 int trackNumber = input.readInt();
                 long durationMs = input.readLong();
                 long lastModifiedMs = input.readLong();
