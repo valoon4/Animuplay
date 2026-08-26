@@ -25,7 +25,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -39,17 +38,28 @@ jobs:
             "platforms;android-35" \
             "build-tools;35.0.0"
 
-      # Install the exact Gradle version directly on the GitHub runner.
-      # The project also contains gradlew/gradle-wrapper for Android Studio/local builds,
-      # but CI does not rely on an already-populated local Gradle cache.
-      - name: Set up Gradle 8.11.1
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.11.1'
+      # Install Gradle directly instead of relying on the repository wrapper.
+      # This makes CI independent of gradle-wrapper.jar validation/caching issues.
+      - name: Install Gradle 8.11.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          GRADLE_VERSION="8.11.1"
+          curl -fsSL "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" -o /tmp/gradle.zip
+          sudo mkdir -p /opt/gradle
+          sudo unzip -q /tmp/gradle.zip -d /opt/gradle
+          echo "/opt/gradle/gradle-${GRADLE_VERSION}/bin" >> "$GITHUB_PATH"
+
+      - name: Show build environment
+        shell: bash
+        run: |
+          java -version
+          gradle --version
+          sdkmanager --list_installed
 
       - name: Build debug APK
         shell: bash
-        run: gradle clean assembleDebug --stacktrace
+        run: gradle clean assembleDebug --stacktrace --no-daemon
 
       - name: Verify APK and signing certificate
         shell: bash
