@@ -10,8 +10,8 @@ android {
         applicationId 'de.minimal.musicplayer'
         minSdk 24
         targetSdk 35
-        versionCode 12
-        versionName '0.12.0-debug'
+        versionCode 13
+        versionName '0.12.1-debug'
     }
 
     signingConfigs {
