@@ -991,8 +991,9 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             String rawGenre = GenreTagReader.readGenre(getContentResolver(), audio.uri, audio.fileName);
             String androidGenre = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE);
             String genre = valueOr(rawGenre, valueOr(androidGenre, "Unbekannt"));
-            String year = valueOr(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR),
-                    "Unbekannt");
+            String rawYear = YearTagReader.readYear(getContentResolver(), audio.uri, audio.fileName);
+    String androidYear = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR);
+    String year = valueOr(rawYear, valueOr(androidYear, "Unbekannt"));
             int track = parseTrackNumber(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER));
             long duration = parseLong(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION));
             return new Song(audio.uri, audio.fileName, title, artist, album, genre, year,
