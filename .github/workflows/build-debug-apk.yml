@@ -8,17 +8,56 @@ on:
       - master
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-debug-apk:
-    name: Build v0.12 Debug APK
+    name: Build v0.12.1 Debug APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      # One-time source migration: wire the new raw YearTagReader into the existing
+      # metadata scan without otherwise touching MainActivity.
+      - name: Apply year metadata source fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('app/src/main/java/de/minimal/musicplayer/MainActivity.java')
+          text = path.read_text(encoding='utf-8')
+          old = '''            String year = valueOr(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR),
+                              "Unbekannt");'''
+          new = '''            String rawYear = YearTagReader.readYear(getContentResolver(), audio.uri, audio.fileName);
+              String androidYear = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR);
+              String year = valueOr(rawYear, valueOr(androidYear, "Unbekannt"));'''
+
+          if old in text:
+              text = text.replace(old, new, 1)
+              path.write_text(text, encoding='utf-8')
+              print('Patched MainActivity year metadata extraction.')
+          elif 'YearTagReader.readYear(getContentResolver(), audio.uri, audio.fileName)' in text:
+              print('MainActivity already contains the year metadata fix.')
+          else:
+              raise SystemExit('Could not locate expected Year extraction code in MainActivity.java')
+          PY
+
+      - name: Persist source fix in repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! git diff --quiet -- app/src/main/java/de/minimal/musicplayer/MainActivity.java; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add app/src/main/java/de/minimal/musicplayer/MainActivity.java
+            git commit -m "Use raw MP3/FLAC year metadata reader [skip ci]"
+            git push
+          fi
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -47,13 +86,6 @@ jobs:
           sudo mkdir -p /opt/gradle
           sudo unzip -q /tmp/gradle.zip -d /opt/gradle
           echo "/opt/gradle/gradle-${GRADLE_VERSION}/bin" >> "$GITHUB_PATH"
-
-      - name: Show build environment
-        shell: bash
-        run: |
-          java -version
-          gradle --version
-          sdkmanager --list_installed
 
       - name: Build debug APK
         shell: bash
@@ -88,12 +120,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/MinimalMusicPlayer-v0.12-debug.apk
-          sha256sum dist/MinimalMusicPlayer-v0.12-debug.apk > dist/MinimalMusicPlayer-v0.12-debug.apk.sha256
+          cp app/build/outputs/apk/debug/app-debug.apk dist/MinimalMusicPlayer-v0.12.1-debug.apk
+          sha256sum dist/MinimalMusicPlayer-v0.12.1-debug.apk > dist/MinimalMusicPlayer-v0.12.1-debug.apk.sha256
           cp apksigner-report.txt dist/apksigner-report.txt
           {
-            echo "MinimalMusicPlayer v0.12 debug"
-            echo "Git commit: $GITHUB_SHA"
+            echo "MinimalMusicPlayer v0.12.1 debug"
+            echo "Git commit: $(git rev-parse HEAD)"
             echo "Gradle: 8.11.1"
             echo "AGP: 8.9.1"
             echo "compileSdk: 35"
@@ -104,7 +136,7 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: MinimalMusicPlayer-v0.12-debug
+          name: MinimalMusicPlayer-v0.12.1-debug
           path: dist/
           if-no-files-found: error
           retention-days: 30
