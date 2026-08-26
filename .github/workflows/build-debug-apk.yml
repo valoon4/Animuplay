@@ -38,8 +38,6 @@ jobs:
             "platforms;android-35" \
             "build-tools;35.0.0"
 
-      # Install Gradle directly instead of relying on the repository wrapper.
-      # This makes CI independent of gradle-wrapper.jar validation/caching issues.
       - name: Install Gradle 8.11.1
         shell: bash
         run: |
@@ -73,8 +71,8 @@ jobs:
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
           "$APKSIGNER" verify --verbose --print-certs "$APK" | tee apksigner-report.txt
 
-          ACTUAL_CERT_SHA256="$($APKSIGNER verify --print-certs "$APK" \
-            | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' \
+          ACTUAL_CERT_SHA256="$(sed -n 's/^.*certificate SHA-256 digest: //p' apksigner-report.txt \
+            | head -n 1 \
             | tr '[:upper:]' '[:lower:]' \
             | tr -d ':[:space:]')"
 
