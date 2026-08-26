@@ -1,0 +1,9 @@
+.gradle/
+.idea/
+local.properties
+**/build/
+*.iml
+.DS_Store
+
+# Intentionally DO NOT ignore app/debug.keystore in this private debug-project repo.
+# It is the fixed test-only key needed for update-compatible APKs from v0.11 onward.
