@@ -9,7 +9,7 @@ The project grew out of a practical need: browse thousands of anime songs by cus
 
 ## Current development version
 
-`0.14.2-debug` (`versionCode 20`)
+`0.14.3-debug` (`versionCode 21`)
 
 This is still a development build. The fixed debug signing key in the repository is intentionally public so existing test installs can update in place. It is **not** a release key and must never be used for a public production release.
 

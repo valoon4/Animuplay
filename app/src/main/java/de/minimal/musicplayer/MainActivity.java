@@ -1245,8 +1245,13 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             return;
         }
         emptyState.setVisibility(View.GONE);
-        if (!TextUtils.isEmpty(searchInput.getText())) {
-            applySearch(searchInput.getText().toString());
+        // SearchMatcher trims/collapses whitespace. Use the normalized value here too,
+        // otherwise a raw whitespace-only EditText recursively bounces between
+        // selectTab() and applySearch() until the stack overflows.
+        String pendingSearch = searchInput == null ? ""
+                : SearchMatcher.normalizeQuery(searchInput.getText().toString());
+        if (!pendingSearch.isEmpty()) {
+            applySearch(pendingSearch);
             return;
         }
         searchQuery = "";
