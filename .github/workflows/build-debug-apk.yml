@@ -8,17 +8,41 @@ on:
       - master
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-debug-apk:
-    name: Build v0.13.3 Debug APK
+    name: Build v0.14 Debug APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Apply v0.14 source patches
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/v014_seasons.py
+          python3 scripts/v014_playlist_filters.py
+          python3 scripts/v014_info.py
+          python3 scripts/v014_layout.py
+
+      - name: Persist v0.14 source changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add app/src/main/java/de/minimal/musicplayer/MainActivity.java \
+                    app/src/main/res/layout/activity_main.xml \
+                    app/src/main/res/drawable/library_list_selector.xml \
+                    app/build.gradle
+            git commit -m "Implement v0.14 season tabs, playlist filters and UI fixes [skip ci]"
+            git push
+          fi
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -60,15 +84,9 @@ jobs:
           set -euo pipefail
           APK="app/build/outputs/apk/debug/app-debug.apk"
           test -f "$APK"
-
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
           "$APKSIGNER" verify --verbose --print-certs "$APK" | tee apksigner-report.txt
-
-          ACTUAL_CERT_SHA256="$(sed -n 's/^.*certificate SHA-256 digest: //p' apksigner-report.txt \
-            | head -n 1 \
-            | tr '[:upper:]' '[:lower:]' \
-            | tr -d ':[:space:]')"
-
+          ACTUAL_CERT_SHA256="$(sed -n 's/^.*certificate SHA-256 digest: //p' apksigner-report.txt | head -n 1 | tr '[:upper:]' '[:lower:]' | tr -d ':[:space:]')"
           if [ "$ACTUAL_CERT_SHA256" != "$EXPECTED_CERT_SHA256" ]; then
             echo "Signing certificate mismatch" >&2
             echo "Expected: $EXPECTED_CERT_SHA256" >&2
@@ -81,12 +99,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/MinimalMusicPlayer-v0.13.3-debug.apk
-          sha256sum dist/MinimalMusicPlayer-v0.13.3-debug.apk > dist/MinimalMusicPlayer-v0.13.3-debug.apk.sha256
+          cp app/build/outputs/apk/debug/app-debug.apk dist/MinimalMusicPlayer-v0.14-debug.apk
+          sha256sum dist/MinimalMusicPlayer-v0.14-debug.apk > dist/MinimalMusicPlayer-v0.14-debug.apk.sha256
           cp apksigner-report.txt dist/apksigner-report.txt
           {
-            echo "MinimalMusicPlayer v0.13.3 debug"
-            echo "Git commit: $GITHUB_SHA"
+            echo "MinimalMusicPlayer v0.14 debug"
+            echo "Git commit: $(git rev-parse HEAD)"
             echo "Gradle: 8.11.1"
             echo "AGP: 8.9.1"
             echo "compileSdk: 35"
@@ -97,7 +115,7 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: MinimalMusicPlayer-v0.13.3-debug
+          name: MinimalMusicPlayer-v0.14-debug
           path: dist/
           if-no-files-found: error
           retention-days: 30
