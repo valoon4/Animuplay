@@ -166,6 +166,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private boolean playlistDetailOpen;
     private boolean playlistScanCompleted;
     private boolean groupSearchEnabled;
+    private boolean groupTypeFiltersEnabled;
     private boolean rlYearBrowserOpen;
     private boolean rlYearDetailOpen;
     private boolean playCountedThisCycle;
@@ -1058,6 +1059,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         playlistBrowserOpen = false;
         playlistDetailOpen = false;
         groupSearchEnabled = false;
+        groupTypeFiltersEnabled = false;
         groupTypeFilter = "";
         groupTitle = "";
         groupBaseSongs.clear();
@@ -1303,14 +1305,48 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         boolean leftNumeric = leftYear >= 0;
         boolean rightNumeric = rightYear >= 0;
 
-        // Numeric seasons first, newest year first. Non-numeric labels stay normal A-Z.
+        // 1) Numeric Anime seasons: newest year first.
         if (leftNumeric != rightNumeric) return leftNumeric ? -1 : 1;
         if (leftNumeric) {
             int byYear = Integer.compare(rightYear, leftYear);
             if (byYear != 0) return byYear;
             return right.compareToIgnoreCase(left);
         }
+
+        // 2) RL_YYYY seasons: also newest first, but after numeric Anime seasons.
+        int leftRlYear = rlSeasonYear(left);
+        int rightRlYear = rlSeasonYear(right);
+        boolean leftRl = leftRlYear >= 0;
+        boolean rightRl = rightRlYear >= 0;
+        if (leftRl != rightRl) return leftRl ? -1 : 1;
+        if (leftRl) {
+            int byYear = Integer.compare(rightRlYear, leftRlYear);
+            if (byYear != 0) return byYear;
+            return left.compareToIgnoreCase(right);
+        }
+
+        // 3) Everything else stays normal A-Z (Special, Unbekannt, etc.).
         return left.compareToIgnoreCase(right);
+    }
+
+    private static int rlSeasonYear(String value) {
+        if (value == null || !value.regionMatches(true, 0, "RL_", 0, 3)) return -1;
+        for (int start = 3; start + 4 <= value.length(); start++) {
+            boolean digits = true;
+            for (int i = 0; i < 4; i++) {
+                if (!Character.isDigit(value.charAt(start + i))) {
+                    digits = false;
+                    break;
+                }
+            }
+            if (!digits) continue;
+            try {
+                return Integer.parseInt(value.substring(start, start + 4));
+            } catch (NumberFormatException ignored) {
+                return -1;
+            }
+        }
+        return -1;
     }
 
     private static int leadingYear(String value) {
@@ -1411,6 +1447,8 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         groupUsesTrackNumbers = group.albumGroup;
         groupSearchEnabled = !group.playlistGroup && !group.albumGroup
                 && (libraryMode == MODE_GENRES || libraryMode == MODE_YEARS);
+        groupTypeFiltersEnabled = groupSearchEnabled
+                && libraryMode == MODE_GENRES && leadingYear(group.name) >= 0;
         groupTypeFilter = "";
         groupTitle = group.name;
         groupBaseSongs.clear();
@@ -1427,8 +1465,8 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             searchInput.setText("");
             searchInput.setHint("In dieser Gruppe suchen");
             searchRow.setVisibility(View.VISIBLE);
-            groupFilterRow.setVisibility(View.VISIBLE);
-            updateGroupFilterButtons();
+            groupFilterRow.setVisibility(groupTypeFiltersEnabled ? View.VISIBLE : View.GONE);
+            if (groupTypeFiltersEnabled) updateGroupFilterButtons();
         } else {
             searchRow.setVisibility(View.GONE);
             groupFilterRow.setVisibility(View.GONE);
@@ -1469,7 +1507,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     }
 
     private void toggleGroupTypeFilter(String type) {
-        if (!groupSearchEnabled) return;
+        if (!groupSearchEnabled || !groupTypeFiltersEnabled) return;
         groupTypeFilter = type.equals(groupTypeFilter) ? "" : type;
         updateGroupFilterButtons();
         applyGroupSearchAndFilter(SearchMatcher.normalizeQuery(searchInput.getText().toString()));
@@ -1518,6 +1556,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
 
     private void resetGroupSearchUi() {
         groupSearchEnabled = false;
+        groupTypeFiltersEnabled = false;
         groupTypeFilter = "";
         groupTitle = "";
         groupBaseSongs.clear();
@@ -1538,6 +1577,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         if (result.group == null) return;
         groupOpen = true;
         groupSearchEnabled = false;
+        groupTypeFiltersEnabled = false;
         if (groupFilterRow != null) groupFilterRow.setVisibility(View.GONE);
         playlistBrowserOpen = false;
         playlistDetailOpen = false;
