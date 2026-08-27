@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   build-debug-apk:
-    name: Build v0.13.1 Debug APK
+    name: Build v0.13.2 Debug APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -20,11 +20,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Apply v0.13.1 source patch
+      - name: Apply v0.13.2 source patch
         shell: bash
-        run: python3 scripts/apply_v0131.py
+        run: python3 scripts/apply_v0132.py
 
-      - name: Persist v0.13.1 source changes
+      - name: Persist v0.13.2 source changes
         shell: bash
         run: |
           set -euo pipefail
@@ -32,7 +32,7 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add app/src/main/java/de/minimal/musicplayer/MainActivity.java app/build.gradle
-            git commit -m "Fix season sorting in v0.13.1 [skip ci]"
+            git commit -m "Implement v0.13.2 RL sorting and Anime-only OP ED filters [skip ci]"
             git push
           fi
 
@@ -97,11 +97,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/MinimalMusicPlayer-v0.13.1-debug.apk
-          sha256sum dist/MinimalMusicPlayer-v0.13.1-debug.apk > dist/MinimalMusicPlayer-v0.13.1-debug.apk.sha256
+          cp app/build/outputs/apk/debug/app-debug.apk dist/MinimalMusicPlayer-v0.13.2-debug.apk
+          sha256sum dist/MinimalMusicPlayer-v0.13.2-debug.apk > dist/MinimalMusicPlayer-v0.13.2-debug.apk.sha256
           cp apksigner-report.txt dist/apksigner-report.txt
           {
-            echo "MinimalMusicPlayer v0.13.1 debug"
+            echo "MinimalMusicPlayer v0.13.2 debug"
             echo "Git commit: $(git rev-parse HEAD)"
             echo "Gradle: 8.11.1"
             echo "AGP: 8.9.1"
@@ -113,7 +113,7 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: MinimalMusicPlayer-v0.13.1-debug
+          name: MinimalMusicPlayer-v0.13.2-debug
           path: dist/
           if-no-files-found: error
           retention-days: 30
