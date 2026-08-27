@@ -93,6 +93,9 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private final HashMap<String, Integer> playCounts = new HashMap<>();
     private final ArrayList<Song> groupBaseSongs = new ArrayList<>();
     private final ArrayList<Song> rlSongsForBrowser = new ArrayList<>();
+    private final int[] topLevelFirstVisible = new int[5];
+    private final int[] topLevelTopOffset = new int[5];
+    private final boolean[] topLevelScrollSaved = new boolean[5];
 
     private final ExecutorService scanExecutor = Executors.newSingleThreadExecutor();
     private final ExecutorService historyExecutor = Executors.newSingleThreadExecutor();
@@ -1052,6 +1055,9 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     }
 
     private void selectTab(int mode) {
+        int previousMode = libraryMode;
+        boolean leavingTopLevel = isTopLevelTabVisible();
+        if (leavingTopLevel && previousMode != mode) saveTopLevelScroll(previousMode);
         libraryMode = mode;
         groupOpen = false;
         groupUsesTrackNumbers = false;
@@ -1124,7 +1130,54 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         }
         adapter.notifyDataSetChanged();
         updateAlphabetVisibility();
+        restoreTopLevelScroll(mode);
         refreshInsets();
+    }
+
+    private boolean isTopLevelTabVisible() {
+        return libraryList != null
+                && libraryList.getVisibility() == View.VISIBLE
+                && tabBar != null && tabBar.getVisibility() == View.VISIBLE
+                && !groupOpen && !playerOpen && !playlistBrowserOpen && !playlistDetailOpen
+                && libraryMode >= MODE_SONGS && libraryMode <= MODE_YEARS
+                && TextUtils.isEmpty(searchQuery);
+    }
+
+    private void saveTopLevelScroll(int mode) {
+        if (mode < MODE_SONGS || mode > MODE_YEARS || libraryList == null) return;
+        int first = Math.max(0, libraryList.getFirstVisiblePosition());
+        View child = libraryList.getChildAt(0);
+        topLevelFirstVisible[mode] = first;
+        topLevelTopOffset[mode] = child == null ? 0 : child.getTop();
+        topLevelScrollSaved[mode] = true;
+    }
+
+    private void restoreTopLevelScroll(int mode) {
+        if (mode < MODE_SONGS || mode > MODE_YEARS || libraryList == null) return;
+        final int position = topLevelScrollSaved[mode] ? topLevelFirstVisible[mode] : 0;
+        final int offset = topLevelScrollSaved[mode] ? topLevelTopOffset[mode] : 0;
+        libraryList.post(() -> {
+            if (groupOpen || playerOpen || libraryMode != mode) return;
+            libraryList.setSelectionFromTop(Math.max(0, position), offset);
+            libraryList.post(this::clearLibraryHighlight);
+        });
+    }
+
+    private void clearLibraryHighlight() {
+        if (libraryList == null) return;
+        libraryList.clearChoices();
+        libraryList.setPressed(false);
+        libraryList.clearFocus();
+        for (int i = 0; i < libraryList.getChildCount(); i++) {
+            View child = libraryList.getChildAt(i);
+            if (child == null) continue;
+            child.setPressed(false);
+            child.setSelected(false);
+            child.setActivated(false);
+            child.clearFocus();
+        }
+        libraryList.setSelection(ListView.INVALID_POSITION);
+        libraryList.invalidate();
     }
 
     private void applySearch(String rawQuery) {
@@ -1426,6 +1479,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     }
 
     private void openGroup(GroupRow group) {
+        if (isTopLevelTabVisible()) saveTopLevelScroll(libraryMode);
         if (group.playlistGroup && group.songs.isEmpty()) {
             Toast.makeText(this, "In dieser Playlist wurde kein Titel im Musikordner gefunden.",
                     Toast.LENGTH_LONG).show();
@@ -1570,7 +1624,10 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     }
 
     private void scrollLibraryToTop() {
-        libraryList.post(() -> libraryList.setSelection(0));
+        libraryList.post(() -> {
+            libraryList.setSelectionFromTop(0, 0);
+            libraryList.post(this::clearLibraryHighlight);
+        });
     }
 
     private void openSearchGroup(SearchResultRow result) {
@@ -1671,6 +1728,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         backButton.setVisibility(View.VISIBLE);
         titleText.setText("Playlists");
         adapter.notifyDataSetChanged();
+        scrollLibraryToTop();
         refreshInsets();
     }
 
@@ -1696,11 +1754,13 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         backButton.setVisibility(View.VISIBLE);
         titleText.setText(title);
         adapter.notifyDataSetChanged();
+        scrollLibraryToTop();
         refreshInsets();
     }
 
     private void openPlayer() {
         if (currentSong == null) return;
+        if (isTopLevelTabVisible()) saveTopLevelScroll(libraryMode);
         playerOpen = true;
         groupOpen = false;
         playlistBrowserOpen = false;
