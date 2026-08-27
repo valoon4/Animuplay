@@ -112,9 +112,11 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private LinearLayout tabBar;
     private LinearLayout searchRow;
     private LinearLayout groupFilterRow;
+    private LinearLayout seasonModeRow;
     private LinearLayout miniPlayer;
     private LinearLayout playerPanel;
     private LinearLayout otherPanel;
+    private LinearLayout infoSettingsPanel;
     private TextView titleText;
     private Button backButton;
     private Button tabSongs;
@@ -125,9 +127,12 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private Button randomPlayButton;
     private Button topPlayedButton;
     private Button playlistsButton;
+    private Button infoSettingsButton;
     private Button clearSearchButton;
     private Button groupOpFilterButton;
     private Button groupEdFilterButton;
+    private Button seasonAnimeButton;
+    private Button seasonRlButton;
     private EditText searchInput;
     private AlphabetIndexView alphabetIndex;
     private TextView miniTitle;
@@ -172,6 +177,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private boolean groupTypeFiltersEnabled;
     private boolean rlYearBrowserOpen;
     private boolean rlYearDetailOpen;
+    private boolean infoSettingsOpen;
     private boolean playCountedThisCycle;
     private long listenedThisCycleMs;
     private long lastProgressRealtimeMs;
@@ -179,6 +185,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private String searchQuery = "";
     private String groupTypeFilter = "";
     private String groupTitle = "";
+    private String seasonCategory = "ANIME";
     private Uri currentTreeUri;
     private long lastPlaybackStateSyncRealtimeMs;
     private volatile int scanGeneration;
@@ -243,6 +250,8 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         setContentView(R.layout.activity_main);
         bindViews();
         initializeGroupFilterRow();
+        initializeSeasonModeRow();
+        libraryList.setChoiceMode(ListView.CHOICE_MODE_NONE);
         repeatOne = getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(PREF_REPEAT_ONE, false);
         playCounts.putAll(PlayHistory.load(this));
         configureMarquee(titleText);
@@ -281,6 +290,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         miniPlayer = findViewById(R.id.miniPlayer);
         playerPanel = findViewById(R.id.playerPanel);
         otherPanel = findViewById(R.id.otherPanel);
+        infoSettingsPanel = findViewById(R.id.infoSettingsPanel);
         titleText = findViewById(R.id.titleText);
         backButton = findViewById(R.id.backButton);
         tabSongs = findViewById(R.id.tabSongs);
@@ -291,6 +301,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         randomPlayButton = findViewById(R.id.randomPlayButton);
         topPlayedButton = findViewById(R.id.topPlayedButton);
         playlistsButton = findViewById(R.id.playlistsButton);
+        infoSettingsButton = findViewById(R.id.infoSettingsButton);
         clearSearchButton = findViewById(R.id.clearSearchButton);
         searchInput = findViewById(R.id.searchInput);
         alphabetIndex = findViewById(R.id.alphabetIndex);
@@ -343,6 +354,47 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         return button;
     }
 
+    private void initializeSeasonModeRow() {
+        seasonModeRow = new LinearLayout(this);
+        seasonModeRow.setOrientation(LinearLayout.HORIZONTAL);
+        seasonModeRow.setGravity(Gravity.CENTER_VERTICAL);
+        seasonModeRow.setVisibility(View.GONE);
+        seasonAnimeButton = makeGroupFilterButton("ANIME");
+        seasonRlButton = makeGroupFilterButton("RL");
+        seasonModeRow.addView(seasonAnimeButton, new LinearLayout.LayoutParams(0, dp(44), 1f));
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, dp(44), 1f);
+        rp.setMarginStart(dp(6));
+        seasonModeRow.addView(seasonRlButton, rp);
+        LinearLayout.LayoutParams row = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44));
+        row.setMargins(dp(12), dp(4), dp(12), dp(2));
+        rootLayout.addView(seasonModeRow, Math.max(0, rootLayout.indexOfChild(searchRow) + 1), row);
+        seasonAnimeButton.setOnClickListener(v -> setSeasonCategory("ANIME"));
+        seasonRlButton.setOnClickListener(v -> setSeasonCategory("RL"));
+        updateSeasonModeButtons();
+    }
+
+    private void setSeasonCategory(String category) {
+        if (libraryMode != MODE_GENRES || groupOpen || playerOpen) return;
+        seasonCategory = "RL".equals(category) ? "RL" : "ANIME";
+        if (!TextUtils.isEmpty(searchInput.getText())) {
+            searchInput.setText("");
+            hideSearchKeyboard();
+        }
+        searchQuery = "";
+        visibleSongs.clear();
+        visibleGroups.clear();
+        visibleGroups.addAll(buildSeasonGroupsForCategory());
+        updateSeasonModeButtons();
+        adapter.notifyDataSetChanged();
+        updateAlphabetVisibility();
+        scrollLibraryToTop();
+    }
+
+    private void updateSeasonModeButtons() {
+        styleGroupFilterButton(seasonAnimeButton, "ANIME".equals(seasonCategory));
+        styleGroupFilterButton(seasonRlButton, "RL".equals(seasonCategory));
+    }
+
     private void applySystemInsets() {
         rootLayout.setOnApplyWindowInsetsListener((view, insets) -> {
             int left = insets == null ? 0 : insets.getSystemWindowInsetLeft();
@@ -379,6 +431,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         groupEdFilterButton.setOnClickListener(v -> toggleGroupTypeFilter("ED"));
         alphabetIndex.setOnLetterSelectedListener(this::jumpToLetter);
         topPlayedButton.setOnClickListener(v -> openTopPlayed());
+        infoSettingsButton.setOnClickListener(v -> openInfoSettings());
         playlistsButton.setOnClickListener(v -> {
             if (!playlistScanCompleted) {
                 Toast.makeText(this, "Playlists werden noch im Hintergrund geprüft.", Toast.LENGTH_SHORT).show();
@@ -1071,13 +1124,16 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         groupBaseSongs.clear();
         rlYearBrowserOpen = false;
         rlYearDetailOpen = false;
+        infoSettingsOpen = false;
         rlSongsForBrowser.clear();
         if (groupFilterRow != null) groupFilterRow.setVisibility(View.GONE);
+        if (seasonModeRow != null) seasonModeRow.setVisibility(View.GONE);
         if (searchInput != null) searchInput.setHint("Titel, Interpret oder Album suchen");
         playerOpen = false;
         playerPanel.setVisibility(View.GONE);
         scanningState.setVisibility(View.GONE);
         otherPanel.setVisibility(View.GONE);
+        if (infoSettingsPanel != null) infoSettingsPanel.setVisibility(View.GONE);
         tabBar.setVisibility(View.VISIBLE);
         backButton.setVisibility(View.GONE);
         titleText.setText("Musikplayer");
@@ -1122,7 +1178,9 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             visibleGroups.addAll(buildGroups(true));
             randomPlayButton.setVisibility(View.GONE);
         } else if (mode == MODE_GENRES) {
-            visibleGroups.addAll(buildGroups(false));
+            visibleGroups.addAll(buildSeasonGroupsForCategory());
+            seasonModeRow.setVisibility(View.VISIBLE);
+            updateSeasonModeButtons();
             randomPlayButton.setVisibility(View.GONE);
         } else if (mode == MODE_YEARS) {
             visibleGroups.addAll(buildYearGroups());
@@ -1183,6 +1241,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private void applySearch(String rawQuery) {
         String query = SearchMatcher.normalizeQuery(rawQuery);
         searchQuery = query;
+        if (!query.isEmpty() && seasonModeRow != null) seasonModeRow.setVisibility(View.GONE);
         if (groupOpen && groupSearchEnabled && !playerOpen) {
             applyGroupSearchAndFilter(query);
             return;
@@ -1261,11 +1320,14 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     }
 
     private void hideSearchKeyboard() {
-        searchInput.clearFocus();
-        InputMethodManager inputMethodManager =
-                (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-        if (inputMethodManager != null) {
-            inputMethodManager.hideSoftInputFromWindow(searchInput.getWindowToken(), 0);
+        if (searchInput != null) searchInput.clearFocus();
+        View decor = getWindow().getDecorView();
+        decor.setFocusableInTouchMode(true);
+        decor.requestFocus();
+        InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (imm != null) {
+            imm.hideSoftInputFromWindow(decor.getWindowToken(), InputMethodManager.HIDE_NOT_ALWAYS);
+            mainHandler.postDelayed(() -> imm.hideSoftInputFromWindow(decor.getWindowToken(), 0), 120L);
         }
     }
 
@@ -1350,6 +1412,15 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             result.sort((a, b) -> compareSeasonNames(a.name, b.name));
         }
         return result;
+    }
+
+    private List<GroupRow> buildSeasonGroupsForCategory() {
+        ArrayList<GroupRow> out = new ArrayList<>();
+        for (GroupRow group : buildGroups(false)) {
+            boolean rl = group.name != null && group.name.regionMatches(true, 0, "RL_", 0, 3);
+            if (("RL".equals(seasonCategory) && rl) || (!"RL".equals(seasonCategory) && !rl)) out.add(group);
+        }
+        return out;
     }
 
     private static int compareSeasonNames(String left, String right) {
@@ -1501,30 +1572,32 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         groupUsesTrackNumbers = group.albumGroup;
         groupSearchEnabled = !group.playlistGroup && !group.albumGroup
                 && (libraryMode == MODE_GENRES || libraryMode == MODE_YEARS);
-        groupTypeFiltersEnabled = groupSearchEnabled
+        boolean numericAnimeSeason = groupSearchEnabled
                 && libraryMode == MODE_GENRES && leadingYear(group.name) >= 0;
+        boolean numericPlaylist = group.playlistGroup && startsWithDigit(group.name);
+        groupTypeFiltersEnabled = numericAnimeSeason || numericPlaylist;
         groupTypeFilter = "";
         groupTitle = group.name;
         groupBaseSongs.clear();
         groupBaseSongs.addAll(group.songs);
-        if (groupSearchEnabled) sortSongsByAlbum(groupBaseSongs);
+        if (groupSearchEnabled && !group.playlistGroup) sortSongsByAlbum(groupBaseSongs);
 
         visibleGroups.clear();
         visibleSongs.clear();
         visibleSongs.addAll(groupBaseSongs);
         tabBar.setVisibility(View.GONE);
+        if (seasonModeRow != null) seasonModeRow.setVisibility(View.GONE);
         alphabetIndex.setVisibility(View.GONE);
         otherPanel.setVisibility(View.GONE);
         if (groupSearchEnabled) {
             searchInput.setText("");
             searchInput.setHint("In dieser Gruppe suchen");
             searchRow.setVisibility(View.VISIBLE);
-            groupFilterRow.setVisibility(groupTypeFiltersEnabled ? View.VISIBLE : View.GONE);
-            if (groupTypeFiltersEnabled) updateGroupFilterButtons();
         } else {
             searchRow.setVisibility(View.GONE);
-            groupFilterRow.setVisibility(View.GONE);
         }
+        groupFilterRow.setVisibility(groupTypeFiltersEnabled ? View.VISIBLE : View.GONE);
+        if (groupTypeFiltersEnabled) updateGroupFilterButtons();
         randomPlayButton.setVisibility(visibleSongs.isEmpty() ? View.GONE : View.VISIBLE);
         backButton.setVisibility(View.VISIBLE);
         titleText.setText(group.name);
@@ -1561,10 +1634,11 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     }
 
     private void toggleGroupTypeFilter(String type) {
-        if (!groupSearchEnabled || !groupTypeFiltersEnabled) return;
+        if (!groupTypeFiltersEnabled) return;
         groupTypeFilter = type.equals(groupTypeFilter) ? "" : type;
         updateGroupFilterButtons();
-        applyGroupSearchAndFilter(SearchMatcher.normalizeQuery(searchInput.getText().toString()));
+        String query = groupSearchEnabled ? SearchMatcher.normalizeQuery(searchInput.getText().toString()) : "";
+        applyGroupSearchAndFilter(query);
     }
 
     private void updateGroupFilterButtons() {
@@ -1579,7 +1653,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     }
 
     private void applyGroupSearchAndFilter(String query) {
-        if (!groupSearchEnabled) return;
+        if (!groupSearchEnabled && !groupTypeFiltersEnabled) return;
         visibleGroups.clear();
         visibleSongs.clear();
         for (Song song : groupBaseSongs) {
@@ -1591,7 +1665,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
                     && !SearchMatcher.contains(song.album, query)) continue;
             visibleSongs.add(song);
         }
-        sortSongsByAlbum(visibleSongs);
+        if (!playlistDetailOpen) sortSongsByAlbum(visibleSongs);
         randomPlayButton.setVisibility(visibleSongs.isEmpty() ? View.GONE : View.VISIBLE);
         int shown = visibleSongs.size();
         int total = groupBaseSongs.size();
@@ -1599,6 +1673,10 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
                 ? groupTitle : groupTitle + " · " + shown + "/" + total);
         adapter.notifyDataSetChanged();
         scrollLibraryToTop();
+    }
+
+    private static boolean startsWithDigit(String value) {
+        return value != null && !value.isEmpty() && Character.isDigit(value.charAt(0));
     }
 
     private static boolean albumMatchesType(Song song, String type) {
@@ -1679,6 +1757,27 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             playlistsButton.setEnabled(true);
             playlistsButton.setAlpha(count > 0 ? 1f : 0.7f);
         }
+    }
+
+    private void openInfoSettings() {
+        infoSettingsOpen = true;
+        groupOpen = false;
+        playerOpen = false;
+        playlistBrowserOpen = false;
+        playlistDetailOpen = false;
+        libraryList.setVisibility(View.GONE);
+        emptyState.setVisibility(View.GONE);
+        otherPanel.setVisibility(View.GONE);
+        infoSettingsPanel.setVisibility(View.VISIBLE);
+        tabBar.setVisibility(View.GONE);
+        searchRow.setVisibility(View.GONE);
+        if (seasonModeRow != null) seasonModeRow.setVisibility(View.GONE);
+        if (groupFilterRow != null) groupFilterRow.setVisibility(View.GONE);
+        alphabetIndex.setVisibility(View.GONE);
+        randomPlayButton.setVisibility(View.GONE);
+        backButton.setVisibility(View.VISIBLE);
+        titleText.setText("Infos & Einstellungen");
+        refreshInsets();
     }
 
     private void openTopPlayed() {
@@ -1781,7 +1880,10 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     }
 
     private void handleBack() {
-        if (playerOpen) {
+        if (infoSettingsOpen) {
+            infoSettingsOpen = false;
+            selectTab(MODE_OTHER);
+        } else if (playerOpen) {
             playerOpen = false;
             playerPanel.setVisibility(View.GONE);
             libraryList.setVisibility(View.VISIBLE);
@@ -1810,7 +1912,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
 
     @Override
     public void onBackPressed() {
-        if (playerOpen || groupOpen) handleBack();
+        if (infoSettingsOpen || playerOpen || groupOpen) handleBack();
         else super.onBackPressed();
     }
 
