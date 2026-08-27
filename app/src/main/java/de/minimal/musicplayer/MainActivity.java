@@ -69,6 +69,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private static final String PREFS = "music_player";
     private static final String PREF_TREE_URI = "tree_uri";
     private static final String PREF_REPEAT_ONE = "repeat_one";
+    private static final String PREF_SMOOTH_TRANSITIONS = "smooth_transitions";
     private static final String MEDIA_CHANNEL_ID = "music_playback";
     private static final int MEDIA_NOTIFICATION_ID = 61;
     private static final String ACTION_PREVIOUS = "de.minimal.musicplayer.PREVIOUS";
@@ -128,6 +129,8 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private Button topPlayedButton;
     private Button playlistsButton;
     private Button infoSettingsButton;
+    private Button refreshLibraryButton;
+    private Button smoothTransitionButton;
     private Button clearSearchButton;
     private Button groupOpFilterButton;
     private Button groupEdFilterButton;
@@ -178,6 +181,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private boolean rlYearBrowserOpen;
     private boolean rlYearDetailOpen;
     private boolean infoSettingsOpen;
+    private boolean smoothTransitions;
     private boolean playCountedThisCycle;
     private long listenedThisCycleMs;
     private long lastProgressRealtimeMs;
@@ -188,6 +192,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private String seasonCategory = "ANIME";
     private Uri currentTreeUri;
     private long lastPlaybackStateSyncRealtimeMs;
+    private int trackTransitionGeneration;
     private volatile int scanGeneration;
 
     private final AudioManager.OnAudioFocusChangeListener audioFocusListener = focusChange -> {
@@ -253,6 +258,9 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         initializeSeasonModeRow();
         libraryList.setChoiceMode(ListView.CHOICE_MODE_NONE);
         repeatOne = getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(PREF_REPEAT_ONE, false);
+        smoothTransitions = getSharedPreferences(PREFS, MODE_PRIVATE)
+                .getBoolean(PREF_SMOOTH_TRANSITIONS, false);
+        updateSmoothTransitionButton();
         playCounts.putAll(PlayHistory.load(this));
         configureMarquee(titleText);
         configureMarquee(miniTitle);
@@ -271,7 +279,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
 
         String savedTree = getSharedPreferences(PREFS, MODE_PRIVATE).getString(PREF_TREE_URI, null);
         if (!TextUtils.isEmpty(savedTree)) {
-            scanLibrary(Uri.parse(savedTree), false);
+            loadCachedLibraryOrScan(Uri.parse(savedTree));
         } else {
             showNoFolderState();
         }
@@ -302,6 +310,8 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         topPlayedButton = findViewById(R.id.topPlayedButton);
         playlistsButton = findViewById(R.id.playlistsButton);
         infoSettingsButton = findViewById(R.id.infoSettingsButton);
+        refreshLibraryButton = findViewById(R.id.refreshLibraryButton);
+        smoothTransitionButton = findViewById(R.id.smoothTransitionButton);
         clearSearchButton = findViewById(R.id.clearSearchButton);
         searchInput = findViewById(R.id.searchInput);
         alphabetIndex = findViewById(R.id.alphabetIndex);
@@ -395,6 +405,84 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         styleGroupFilterButton(seasonRlButton, "RL".equals(seasonCategory));
     }
 
+    private void toggleSmoothTransitions() {
+        smoothTransitions = !smoothTransitions;
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                .putBoolean(PREF_SMOOTH_TRANSITIONS, smoothTransitions).apply();
+        updateSmoothTransitionButton();
+    }
+
+    private void updateSmoothTransitionButton() {
+        if (smoothTransitionButton == null) return;
+        smoothTransitionButton.setText("SANFTER TRACKWECHSEL · "
+                + (smoothTransitions ? "AN" : "AUS"));
+        smoothTransitionButton.setTextColor(getColor(
+                smoothTransitions ? R.color.accent : R.color.text_secondary));
+    }
+
+    private void loadCachedLibraryOrScan(Uri treeUri) {
+        currentTreeUri = treeUri;
+        final String treeKey = treeUri.toString();
+        final int generation = ++scanGeneration;
+        scanExecutor.execute(() -> {
+            ArrayList<Song> cachedSongs = LibraryIndex.load(this, treeKey);
+            sortSongsByTitle(cachedSongs);
+            PlaylistIndex.Snapshot playlistSnapshot = PlaylistIndex.load(this, treeKey);
+            ArrayList<ImportedPlaylist> cachedPlaylists = playlistSnapshot.valid
+                    ? restoreCachedPlaylists(playlistSnapshot.entries, cachedSongs)
+                    : new ArrayList<>();
+
+            mainHandler.post(() -> {
+                if (generation != scanGeneration) return;
+                if (!cachedSongs.isEmpty()) {
+                    allSongs.clear();
+                    allSongs.addAll(cachedSongs);
+                    importedPlaylists.clear();
+                    importedPlaylists.addAll(cachedPlaylists);
+                    playlistScanCompleted = playlistSnapshot.valid;
+                    if (!playerOpen && !groupOpen && !infoSettingsOpen) selectTab(libraryMode);
+                }
+
+                // v0.14.1 introduces the playlist cache. Existing installs need one
+                // silent migration scan; after that normal launches use only cache.
+                if (cachedSongs.isEmpty() || !playlistSnapshot.valid) {
+                    scanLibrary(treeUri, false);
+                } else if (libraryMode == MODE_OTHER) {
+                    updateOtherPanel();
+                }
+            });
+        });
+    }
+
+    private ArrayList<ImportedPlaylist> restoreCachedPlaylists(
+            List<PlaylistIndex.Entry> entries, List<Song> songs) {
+        HashMap<String, Song> songsByUri = new HashMap<>();
+        for (Song song : songs) songsByUri.put(song.uri.toString(), song);
+        ArrayList<ImportedPlaylist> restored = new ArrayList<>();
+        for (PlaylistIndex.Entry entry : entries) {
+            ArrayList<Song> matched = new ArrayList<>();
+            for (String uri : entry.songUris) {
+                Song song = songsByUri.get(uri);
+                if (song != null) matched.add(song);
+            }
+            restored.add(new ImportedPlaylist(entry.name, entry.sourceRelativePath, matched,
+                    entry.totalEntries, entry.missingEntries));
+        }
+        return restored;
+    }
+
+    private ArrayList<PlaylistIndex.Entry> cachePlaylistEntries(
+            List<ImportedPlaylist> playlists) {
+        ArrayList<PlaylistIndex.Entry> entries = new ArrayList<>();
+        for (ImportedPlaylist playlist : playlists) {
+            ArrayList<String> uris = new ArrayList<>();
+            for (Song song : playlist.songs) uris.add(song.uri.toString());
+            entries.add(new PlaylistIndex.Entry(playlist.name, playlist.sourceRelativePath,
+                    uris, playlist.totalEntries, playlist.missingEntries));
+        }
+        return entries;
+    }
+
     private void applySystemInsets() {
         rootLayout.setOnApplyWindowInsetsListener((view, insets) -> {
             int left = insets == null ? 0 : insets.getSystemWindowInsetLeft();
@@ -432,6 +520,14 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         alphabetIndex.setOnLetterSelectedListener(this::jumpToLetter);
         topPlayedButton.setOnClickListener(v -> openTopPlayed());
         infoSettingsButton.setOnClickListener(v -> openInfoSettings());
+        refreshLibraryButton.setOnClickListener(v -> {
+            if (currentTreeUri == null) {
+                Toast.makeText(this, "Kein Musikordner ausgewählt.", Toast.LENGTH_SHORT).show();
+            } else {
+                scanLibrary(currentTreeUri, true);
+            }
+        });
+        smoothTransitionButton.setOnClickListener(v -> toggleSmoothTransitions());
         playlistsButton.setOnClickListener(v -> {
             if (!playlistScanCompleted) {
                 Toast.makeText(this, "Playlists werden noch im Hintergrund geprüft.", Toast.LENGTH_SHORT).show();
@@ -833,6 +929,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
                 PlaylistImportBatch playlistBatch = importPlaylists(playlistFiles, files, found);
                 foundPlaylists.addAll(playlistBatch.playlists);
                 playlistReadErrorCount = playlistBatch.readErrors;
+                PlaylistIndex.save(this, treeKey, cachePlaylistEntries(foundPlaylists));
                 completed = true;
             } catch (Exception ex) {
                 error = ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
@@ -1320,14 +1417,25 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     }
 
     private void hideSearchKeyboard() {
-        if (searchInput != null) searchInput.clearFocus();
         View decor = getWindow().getDecorView();
+        if (searchInput != null) {
+            searchInput.clearFocus();
+            // Temporarily removing focusability stops Samsung Keyboard from immediately
+            // reclaiming the EditText after a song is started.
+            searchInput.setFocusable(false);
+        }
         decor.setFocusableInTouchMode(true);
         decor.requestFocus();
         InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
         if (imm != null) {
-            imm.hideSoftInputFromWindow(decor.getWindowToken(), InputMethodManager.HIDE_NOT_ALWAYS);
+            imm.hideSoftInputFromWindow(decor.getWindowToken(), 0);
             mainHandler.postDelayed(() -> imm.hideSoftInputFromWindow(decor.getWindowToken(), 0), 120L);
+        }
+        if (searchInput != null) {
+            mainHandler.postDelayed(() -> {
+                searchInput.setFocusableInTouchMode(true);
+                searchInput.setFocusable(true);
+            }, 220L);
         }
     }
 
@@ -1417,8 +1525,12 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private List<GroupRow> buildSeasonGroupsForCategory() {
         ArrayList<GroupRow> out = new ArrayList<>();
         for (GroupRow group : buildGroups(false)) {
-            boolean rl = group.name != null && group.name.regionMatches(true, 0, "RL_", 0, 3);
-            if (("RL".equals(seasonCategory) && rl) || (!"RL".equals(seasonCategory) && !rl)) out.add(group);
+            String name = group.name == null ? "" : group.name.trim();
+            boolean anime = leadingYear(name) >= 0 || "OST".equalsIgnoreCase(name);
+            if (("ANIME".equals(seasonCategory) && anime)
+                    || ("RL".equals(seasonCategory) && !anime)) {
+                out.add(group);
+            }
         }
         return out;
     }
@@ -1937,22 +2049,59 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     }
 
     private void playSong(Song song) {
+        hideSearchKeyboard();
+        int generation = ++trackTransitionGeneration;
+        MediaPlayer active = mediaPlayer;
+        if (smoothTransitions && active != null && !preparing) {
+            try {
+                if (active.isPlaying()) {
+                    fadeOutAndStart(active, song, generation, 0);
+                    return;
+                }
+            } catch (IllegalStateException ignored) { }
+        }
+        startSongImmediately(song, generation);
+    }
+
+    private void fadeOutAndStart(MediaPlayer expected, Song target, int generation, int step) {
+        if (generation != trackTransitionGeneration) return;
+        if (expected != mediaPlayer || step >= 5) {
+            startSongImmediately(target, generation);
+            return;
+        }
+        try {
+            float volume = Math.max(0f, 1f - ((step + 1) / 5f));
+            expected.setVolume(volume, volume);
+        } catch (IllegalStateException ignored) {
+            startSongImmediately(target, generation);
+            return;
+        }
+        mainHandler.postDelayed(() -> fadeOutAndStart(expected, target, generation, step + 1), 70L);
+    }
+
+    private void startSongImmediately(Song song, int generation) {
+        if (generation != trackTransitionGeneration) return;
         releasePlayer(false);
         if (mediaSession != null) mediaSession.setActive(true);
         currentSong = song;
         resetPlayCountCycle();
         preparing = true;
         mediaPlayer = new MediaPlayer();
-        mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
+        MediaPlayer createdPlayer = mediaPlayer;
+        createdPlayer.setAudioAttributes(new AudioAttributes.Builder()
                 .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                 .setUsage(AudioAttributes.USAGE_MEDIA)
                 .build());
-        mediaPlayer.setLooping(repeatOne);
-        mediaPlayer.setOnCompletionListener(this);
-        mediaPlayer.setOnPreparedListener(player -> {
+        createdPlayer.setLooping(repeatOne);
+        createdPlayer.setOnCompletionListener(this);
+        createdPlayer.setOnPreparedListener(player -> {
+            if (generation != trackTransitionGeneration || player != mediaPlayer) return;
             preparing = false;
             if (requestAudioFocus()) {
+                if (smoothTransitions) player.setVolume(0f, 0f);
+                else player.setVolume(1f, 1f);
                 player.start();
+                if (smoothTransitions) fadeInPlayer(player, generation, 0);
             } else {
                 Toast.makeText(this, "Audio-Fokus konnte nicht übernommen werden.", Toast.LENGTH_SHORT).show();
             }
@@ -1960,15 +2109,15 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             seekBar.setMax(Math.max(player.getDuration(), 1));
             totalTime.setText(formatDuration(player.getDuration()));
         });
-        mediaPlayer.setOnErrorListener((player, what, extra) -> {
+        createdPlayer.setOnErrorListener((player, what, extra) -> {
             preparing = false;
             Toast.makeText(this, "Datei konnte nicht abgespielt werden.", Toast.LENGTH_SHORT).show();
             updatePlayButtons();
             return true;
         });
         try {
-            mediaPlayer.setDataSource(this, song.uri);
-            mediaPlayer.prepareAsync();
+            createdPlayer.setDataSource(this, song.uri);
+            createdPlayer.prepareAsync();
             miniPlayer.setVisibility(View.VISIBLE);
             refreshInsets();
             updatePlayerMetadata();
@@ -1977,6 +2126,17 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             preparing = false;
             Toast.makeText(this, "Kein Zugriff auf diese Audiodatei.", Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private void fadeInPlayer(MediaPlayer player, int generation, int step) {
+        if (generation != trackTransitionGeneration || player != mediaPlayer || step >= 5) return;
+        try {
+            float volume = (step + 1) / 5f;
+            player.setVolume(volume, volume);
+        } catch (IllegalStateException ignored) {
+            return;
+        }
+        mainHandler.postDelayed(() -> fadeInPlayer(player, generation, step + 1), 70L);
     }
 
     private void togglePlayback() {
