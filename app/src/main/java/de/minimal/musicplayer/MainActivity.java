@@ -1,16 +1,15 @@
 package de.minimal.musicplayer;
 
-import android.Manifest;
 import android.app.Activity;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.content.ClipData;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -65,11 +64,9 @@ import java.util.concurrent.TimeUnit;
 
 public final class MainActivity extends Activity implements MediaPlayer.OnCompletionListener {
     private static final int REQUEST_TREE = 20;
-    private static final int REQUEST_NOTIFICATIONS = 21;
     private static final String PREFS = "music_player";
     private static final String PREF_TREE_URI = "tree_uri";
     private static final String PREF_REPEAT_ONE = "repeat_one";
-    private static final String PREF_SMOOTH_TRANSITIONS = "smooth_transitions";
     private static final String MEDIA_CHANNEL_ID = "music_playback";
     private static final int MEDIA_NOTIFICATION_ID = 61;
     private static final String ACTION_PREVIOUS = "de.minimal.musicplayer.PREVIOUS";
@@ -130,7 +127,6 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private Button playlistsButton;
     private Button infoSettingsButton;
     private Button refreshLibraryButton;
-    private Button smoothTransitionButton;
     private Button clearSearchButton;
     private Button groupOpFilterButton;
     private Button groupEdFilterButton;
@@ -170,7 +166,6 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private boolean userSeeking;
     private boolean audioFocusHeld;
     private boolean resumeOnFocusGain;
-    private boolean notificationPermissionRequested;
     private boolean repeatOne;
     private boolean showPlayCounts;
     private boolean playlistBrowserOpen;
@@ -181,7 +176,6 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private boolean rlYearBrowserOpen;
     private boolean rlYearDetailOpen;
     private boolean infoSettingsOpen;
-    private boolean smoothTransitions;
     private boolean playCountedThisCycle;
     private long listenedThisCycleMs;
     private long lastProgressRealtimeMs;
@@ -192,7 +186,6 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private String seasonCategory = "ANIME";
     private Uri currentTreeUri;
     private long lastPlaybackStateSyncRealtimeMs;
-    private int trackTransitionGeneration;
     private volatile int scanGeneration;
 
     private final AudioManager.OnAudioFocusChangeListener audioFocusListener = focusChange -> {
@@ -258,9 +251,6 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         initializeSeasonModeRow();
         libraryList.setChoiceMode(ListView.CHOICE_MODE_NONE);
         repeatOne = getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(PREF_REPEAT_ONE, false);
-        smoothTransitions = getSharedPreferences(PREFS, MODE_PRIVATE)
-                .getBoolean(PREF_SMOOTH_TRANSITIONS, false);
-        updateSmoothTransitionButton();
         playCounts.putAll(PlayHistory.load(this));
         configureMarquee(titleText);
         configureMarquee(miniTitle);
@@ -311,7 +301,6 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         playlistsButton = findViewById(R.id.playlistsButton);
         infoSettingsButton = findViewById(R.id.infoSettingsButton);
         refreshLibraryButton = findViewById(R.id.refreshLibraryButton);
-        smoothTransitionButton = findViewById(R.id.smoothTransitionButton);
         clearSearchButton = findViewById(R.id.clearSearchButton);
         searchInput = findViewById(R.id.searchInput);
         alphabetIndex = findViewById(R.id.alphabetIndex);
@@ -403,21 +392,6 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private void updateSeasonModeButtons() {
         styleGroupFilterButton(seasonAnimeButton, "ANIME".equals(seasonCategory));
         styleGroupFilterButton(seasonRlButton, "RL".equals(seasonCategory));
-    }
-
-    private void toggleSmoothTransitions() {
-        smoothTransitions = !smoothTransitions;
-        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-                .putBoolean(PREF_SMOOTH_TRANSITIONS, smoothTransitions).apply();
-        updateSmoothTransitionButton();
-    }
-
-    private void updateSmoothTransitionButton() {
-        if (smoothTransitionButton == null) return;
-        smoothTransitionButton.setText("SANFTER TRACKWECHSEL · "
-                + (smoothTransitions ? "AN" : "AUS"));
-        smoothTransitionButton.setTextColor(getColor(
-                smoothTransitions ? R.color.accent : R.color.text_secondary));
     }
 
     private void loadCachedLibraryOrScan(Uri treeUri) {
@@ -527,7 +501,6 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
                 scanLibrary(currentTreeUri, true);
             }
         });
-        smoothTransitionButton.setOnClickListener(v -> toggleSmoothTransitions());
         playlistsButton.setOnClickListener(v -> {
             if (!playlistScanCompleted) {
                 Toast.makeText(this, "Playlists werden noch im Hintergrund geprüft.", Toast.LENGTH_SHORT).show();
@@ -580,6 +553,10 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         findViewById(R.id.miniNext).setOnClickListener(v -> nextSong());
         findViewById(R.id.playerPrev).setOnClickListener(v -> previousSong());
         findViewById(R.id.playerNext).setOnClickListener(v -> nextSong());
+        artwork.setOnLongClickListener(v -> {
+            shareCurrentSong();
+            return true;
+        });
 
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
@@ -594,6 +571,34 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
                 }
             }
         });
+    }
+
+    private void shareCurrentSong() {
+        Song song = currentSong;
+        if (song == null || song.uri == null) return;
+
+        String mime = getContentResolver().getType(song.uri);
+        String fileName = song.fileName == null ? "" : song.fileName.toLowerCase(Locale.ROOT);
+        if (TextUtils.isEmpty(mime) || !mime.toLowerCase(Locale.ROOT).startsWith("audio/")) {
+            if (fileName.endsWith(".flac")) mime = "audio/flac";
+            else if (fileName.endsWith(".mp3")) mime = "audio/mpeg";
+            else mime = "audio/*";
+        }
+
+        Intent share = new Intent(Intent.ACTION_SEND);
+        share.setType(mime);
+        share.putExtra(Intent.EXTRA_STREAM, song.uri);
+        share.setClipData(ClipData.newRawUri(
+                TextUtils.isEmpty(song.fileName) ? song.title : song.fileName, song.uri));
+        share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+        try {
+            Intent chooser = Intent.createChooser(share, "Song teilen");
+            chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(chooser);
+        } catch (RuntimeException ex) {
+            Toast.makeText(this, "Song konnte nicht geteilt werden.", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void initializePlaybackSystem() {
@@ -714,14 +719,6 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
 
     private void updateMediaNotification(boolean playing) {
         if (notificationManager == null || mediaSession == null || currentSong == null) return;
-        if (Build.VERSION.SDK_INT >= 33
-                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            if (!notificationPermissionRequested) {
-                notificationPermissionRequested = true;
-                requestPermissions(new String[] {Manifest.permission.POST_NOTIFICATIONS}, REQUEST_NOTIFICATIONS);
-            }
-            return;
-        }
         PendingIntent previous = playbackPendingIntent(ACTION_PREVIOUS, 1);
         PendingIntent playPause = playbackPendingIntent(ACTION_PLAY_PAUSE, 2);
         PendingIntent next = playbackPendingIntent(ACTION_NEXT, 3);
@@ -775,20 +772,6 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             else if (ACTION_NEXT.equals(action)) activity.nextSong();
             else if (ACTION_STOP.equals(action)) activity.stopPlaybackAndDismiss();
         });
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == REQUEST_NOTIFICATIONS && currentSong != null
-                && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            boolean playing = false;
-            if (mediaPlayer != null && !preparing) {
-                try { playing = mediaPlayer.isPlaying(); }
-                catch (IllegalStateException ignored) { }
-            }
-            updateMediaNotification(playing);
-        }
     }
 
     @Override
@@ -2050,37 +2033,6 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
 
     private void playSong(Song song) {
         hideSearchKeyboard();
-        int generation = ++trackTransitionGeneration;
-        MediaPlayer active = mediaPlayer;
-        if (smoothTransitions && active != null && !preparing) {
-            try {
-                if (active.isPlaying()) {
-                    fadeOutAndStart(active, song, generation, 0);
-                    return;
-                }
-            } catch (IllegalStateException ignored) { }
-        }
-        startSongImmediately(song, generation);
-    }
-
-    private void fadeOutAndStart(MediaPlayer expected, Song target, int generation, int step) {
-        if (generation != trackTransitionGeneration) return;
-        if (expected != mediaPlayer || step >= 5) {
-            startSongImmediately(target, generation);
-            return;
-        }
-        try {
-            float volume = Math.max(0f, 1f - ((step + 1) / 5f));
-            expected.setVolume(volume, volume);
-        } catch (IllegalStateException ignored) {
-            startSongImmediately(target, generation);
-            return;
-        }
-        mainHandler.postDelayed(() -> fadeOutAndStart(expected, target, generation, step + 1), 70L);
-    }
-
-    private void startSongImmediately(Song song, int generation) {
-        if (generation != trackTransitionGeneration) return;
         releasePlayer(false);
         if (mediaSession != null) mediaSession.setActive(true);
         currentSong = song;
@@ -2095,13 +2047,11 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         createdPlayer.setLooping(repeatOne);
         createdPlayer.setOnCompletionListener(this);
         createdPlayer.setOnPreparedListener(player -> {
-            if (generation != trackTransitionGeneration || player != mediaPlayer) return;
+            if (player != mediaPlayer) return;
             preparing = false;
             if (requestAudioFocus()) {
-                if (smoothTransitions) player.setVolume(0f, 0f);
-                else player.setVolume(1f, 1f);
+                player.setVolume(1f, 1f);
                 player.start();
-                if (smoothTransitions) fadeInPlayer(player, generation, 0);
             } else {
                 Toast.makeText(this, "Audio-Fokus konnte nicht übernommen werden.", Toast.LENGTH_SHORT).show();
             }
@@ -2126,17 +2076,6 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             preparing = false;
             Toast.makeText(this, "Kein Zugriff auf diese Audiodatei.", Toast.LENGTH_SHORT).show();
         }
-    }
-
-    private void fadeInPlayer(MediaPlayer player, int generation, int step) {
-        if (generation != trackTransitionGeneration || player != mediaPlayer || step >= 5) return;
-        try {
-            float volume = (step + 1) / 5f;
-            player.setVolume(volume, volume);
-        } catch (IllegalStateException ignored) {
-            return;
-        }
-        mainHandler.postDelayed(() -> fadeInPlayer(player, generation, step + 1), 70L);
     }
 
     private void togglePlayback() {

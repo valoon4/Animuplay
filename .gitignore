@@ -5,5 +5,11 @@ local.properties
 *.iml
 .DS_Store
 
-# Intentionally DO NOT ignore app/debug.keystore in this private debug-project repo.
-# It is the fixed test-only key needed for update-compatible APKs from v0.11 onward.
+# Release signing material must stay private.
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+
+# Exception: fixed PUBLIC test-only key used by the historical debug upgrade chain.
+!app/debug.keystore

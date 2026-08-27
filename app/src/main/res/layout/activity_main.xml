@@ -247,16 +247,6 @@
                 android:textColor="@color/accent"
                 android:textStyle="bold" />
 
-            <Button
-                android:id="@+id/smoothTransitionButton"
-                android:layout_width="match_parent"
-                android:layout_height="56dp"
-                android:layout_marginTop="12dp"
-                android:background="@drawable/rounded_surface"
-                android:text="SANFTER TRACKWECHSEL · AUS"
-                android:textColor="@color/text_secondary"
-                android:textStyle="bold" />
-
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

@@ -1,91 +1,105 @@
-# Minimal Music Player (Android MVP) — v0.12
+# Minimal Music Player / Animuplay
 
-Ein bewusst kleiner lokaler Musikplayer für große MP3- und FLAC-Bibliotheken.
+A focused offline Android music player for large, personally managed MP3/FLAC libraries.
+The project grew out of a practical need: browse thousands of anime songs by custom season tags, keep real-life music separate, import existing PC playlists, and avoid accounts, cloud libraries, ads, tracking, and broad storage permissions.
 
-## Enthalten
+> The final public app name and package ID will be chosen for the v1.0 release. The current Android app label is still **Musikplayer** and the package is `de.minimal.musicplayer`.
 
-- Ordnerauswahl über Androids Storage Access Framework
-- Rekursive Erkennung von `.mp3` und `.flac`
-- Sichtbarer Fortschritt beim ersten Metadaten-Scan (`X / Y`)
-- Persistenter Bibliotheksindex; spätere Starts zeigen den Cache sofort und prüfen Änderungen im Hintergrund
-- Metadaten: Titel, Interpret, Album, Tracknummer, Dauer, Genre/Season und Jahr
-- Eigener Rohdatenleser für MP3-ID3v2-`TCON` und FLAC-Vorbis-`GENRE`
-- Numerisch beginnende Genre-Tags bleiben exakt erhalten, z. B. `2012_3.Summer`
-- Songs A–Z, Album-, Seasons- und Jahresansicht sowie gruppenbezogene Zufallswiedergabe
-- Suche nach Album, Songtitel und Interpret; Genres werden nicht durchsucht
-- A–Z-Schnellsprung am rechten Listenrand
-- Audio-Fokus, MediaSession und Medienbenachrichtigung
-- Repeat-One-Schalter als schlichtes `1`
-- Album, Tracknummer und Genre in der großen Wiedergabeansicht
-- Eingebettete Cover, sofern vorhanden
-- Wiedergabezähler nach mehr als 50 % tatsächlich gehörter Zeit
-- Top 50 meistgespielte Titel mit Zufallswiedergabe
-- Automatischer `.m3u`/`.m3u8`-Import aus dem gewählten Musikordner
-- Android 7.0 (API 24) oder neuer
+**Developed by Eugen.**
 
-## Playcount-Profil
+## Current development version
 
-Die Wiedergabezähler werden weiterhin intern gespiegelt und zusätzlich portabel im ausgewählten Musikordner gespeichert:
+`0.14.2-debug` (`versionCode 20`)
 
-```text
-MinimalMusicPlayer/profile.json
-```
+This is still a development build. The fixed debug signing key in the repository is intentionally public so existing test installs can update in place. It is **not** a release key and must never be used for a public production release.
 
-Die Einträge verwenden relative Musikpfade. Dadurch bleiben Statistiken nach einer späteren Neuinstallation erhalten, sofern wieder derselbe Musik-Hauptordner ausgewählt wird. Falls der Dokumentanbieter den Ordner nicht beschreibbar bereitstellt, bleibt der interne App-Speicher als Fallback aktiv.
+## What it does
 
-## Mediensteuerung
+- Selects exactly one music root through Android's Storage Access Framework; no broad storage permission.
+- Recursively indexes MP3 and FLAC files and caches metadata for fast later starts.
+- Manual **Bibliothek aktualisieren** action for the rare cases where files or tags changed.
+- Songs A-Z, album view, Seasons view, Year view and Top 50 most played.
+- Season browser split into **ANIME** and **RL**:
+  - Anime = tags beginning with a year (for example `2026_2.Spring`) plus the explicit `OST` tag.
+  - RL = all remaining tags, including `RL_YYYY`, `Special`, `Unbekannt`, etc.
+- Raw MP3/FLAC genre readers preserve custom tags beginning with digits instead of treating them as legacy numeric ID3 genres.
+- Year reader supports common MP3 ID3 and FLAC Vorbis year/date fields.
+- Strict substring search over album, song title and artist.
+- OP/ED filtering for numeric anime Seasons and numeric playlist names.
+- Recursive `.m3u` / `.m3u8` import with Windows paths, relative paths, URI decoding, Unicode, duplicates and missing-entry counts.
+- Imported playlists and music metadata are cached so a normal launch does not walk the full music tree.
+- Playback queue is internal only; no separate queue-management UI.
+- Repeat-one, previous/next, random playback, Audio Focus, MediaSession, lock-screen progress and media controls.
+- Embedded album artwork where available.
+- Long-press the artwork in **Aktuelle Wiedergabe** to share the actual MP3/FLAC file through Android's system share sheet.
+- Play counts increase only after more than 50% was actually listened to; seeking past the threshold does not count.
+- Portable play history at `MinimalMusicPlayer/profile.json` inside the selected music root, with internal fallback.
 
-Die MediaSession veröffentlicht Position, Geschwindigkeit und einen aktuellen Zeitstempel. Dadurch kann Android den Fortschritt auf Sperrbildschirm und Medienleiste weiterrechnen. Zusätzlich wird der Zustand während der Wiedergabe regelmäßig synchronisiert.
+## Offline and privacy
 
-Version 0.11 erzwingt die Stop-/X-Aktion in den drei kompakten Benachrichtigungsaktionen und verarbeitet Benachrichtigungsaktionen über einen eigenen BroadcastReceiver, ohne die Activity in den Vordergrund zu holen. Ein erlaubtes Wegwischen verwendet dasselbe Stop-Signal. Manche Hersteller-Oberflächen blockieren das Wegwischen aktiver Medienkarten grundsätzlich; dort ist das sichtbare X der vorgesehene Abschlussweg.
+The app has **no internet permission** and sends no library, playback or analytics data anywhere. It only accesses the folder explicitly selected by the user.
 
-## Playlist-Import
+The Android media notification is used only for local playback controls. The app does not request `POST_NOTIFICATIONS`; MediaSession playback notifications use Android's media-notification path.
 
-Die App sucht rekursiv im ausgewählten Musikordner nach `.m3u` und `.m3u8`. Es ist kein separater Importordner nötig.
+Sharing a song happens only after the user long-presses the current cover. Android grants the chosen receiving app temporary read access to that one audio document.
 
-Unter **Sonstiges → Playlists** werden die gefundenen Dateien angezeigt. Beim Öffnen einer Playlist bleibt die Reihenfolge aus der Datei erhalten. Doppelte Einträge bleiben ebenfalls erhalten. Die vorhandene Zufallswiedergabe kann innerhalb der geöffneten Playlist verwendet werden.
+## Library cache
 
-### Pfade vom PC
+After the first complete scan, song metadata and imported playlist mappings are stored in the app's private storage. Normal launches restore those caches directly.
 
-Desktop-Pfade werden automatisch auf den ausgewählten Android-Musikordner abgebildet. Beispiel:
+When music files or metadata change, use:
+
+**Sonstiges → Infos & Einstellungen → Bibliothek aktualisieren**
+
+If no valid cache exists (for example on first use), the app scans automatically.
+
+## Playlist compatibility
+
+PC playlists may contain entries such as:
 
 ```text
 file:///F:/Musik/2025/Doctor%20Stone%20-%20Science%20Future%20OP.flac
 ```
 
-wird vollständig URI-dekodiert und über den relativen Teil
+The player maps the music-root portion to the selected Android folder, fully URI-decodes UTF-8 paths, supports `/` and `\`, keeps literal `+`, accepts relative paths, preserves playlist order and duplicates, and skips missing files without rejecting the whole playlist.
 
-```text
-2025/Doctor Stone - Science Future OP.flac
+## Build
+
+Requirements:
+
+- JDK 17
+- Android SDK Platform 36
+- Android Build Tools 36.x
+- Android Gradle Plugin 8.9.1
+- Gradle 8.11.1 (the included wrapper is pinned to this version)
+
+Build the debug APK with:
+
+```bash
+./gradlew clean assembleDebug
 ```
 
-im Android-Musikordner gesucht. Unterstützt werden vollständige UTF-8-Prozentkodierung, echte Pluszeichen, Windows-Backslashes, absolute Windows-Pfade, relative Pfade sowie übliche M3U/M3U8-Zeichenkodierungen.
+Output:
 
-Nicht gefundene Einträge brechen den Import nicht ab. Pro Playlist wird beispielsweise `117 von 120 Titeln gefunden` angezeigt. Die App liest Playlists nur ein; Erstellen oder Bearbeiten ist in diesem MVP nicht enthalten.
+```text
+app/build/outputs/apk/debug/app-debug.apk
+```
 
-## Suche
+The GitHub Actions workflow performs the same debug build and verifies the known test certificate before publishing an artifact.
 
-Die Suche arbeitet als harte, normalisierte Teiltextsuche ohne Tippfehlertoleranz. Ergebnisse erscheinen in dieser Reihenfolge:
+## Release signing
 
-1. passende Alben als Gruppen
-2. passende Songtitel
-3. passende Interpreten als Gruppen
+Do **not** reuse `app/debug.keystore` for a real release. Before v1.0, create a new private release/upload key locally, keep it outside this repository, and add release signing without committing the key or passwords. `.gitignore` already excludes normal release keystore/property names.
 
-Durchsucht werden ausschließlich Album, Songtitel und Interpret.
+## Dependencies and licensing
 
-## Datenschutz
+The app currently has no third-party runtime libraries declared in Gradle; it uses Android platform and Java APIs. A repository scan also found no embedded third-party copyright headers in the source tree.
 
-Die App benötigt keine Internetberechtigung. Sie liest nur den ausdrücklich ausgewählten Ordner. Bibliotheksindex und ein Fallback der Wiedergabezähler liegen im internen App-Speicher; das portable Statistikprofil liegt im ausgewählten Musikordner.
+Project source code is released under the [MIT License](LICENSE).
 
-## Debug-Signatur
+The launcher artwork is a project-owned/generated asset stored in the Android resources. It does not intentionally depict or name a specific third-party anime character or franchise. Before a branded v1.0 release, the final icon/name should still receive one last trademark/visual review.
 
-Das Projekt enthält absichtlich einen festen **Test-Debug-Key**, damit weitere Debug-APKs direkt aktualisiert werden können. Dieser Schlüssel ist öffentlich im Quellpaket und darf niemals für eine Release- oder Store-Version verwendet werden.
+## Supported Android versions
 
-## Neu in v0.12
-
-- Bestehender Tab `GENRES` wurde ohne zusätzliche Ebene in `SEASONS` umbenannt.
-- Neuer Tab `JAHR` direkt rechts daneben; Gruppierung basiert ausschließlich auf dem echten Year-Metadatum (`METADATA_KEY_YEAR`).
-- Songs ohne Year-Metadatum landen unter `Unbekannt`.
-- v0.11-Bibliothekscache ist rückwärtskompatibel; fehlende Year-Werte werden einmalig im Hintergrund angereichert und danach im Cacheformat v2 gespeichert.
-- Beim Antippen eines direkten Songtreffers in der Suche schließt sich die Bildschirmtastatur sofort.
-- Bestehende Genre-Rohdatenauswertung, Suche, Albumgruppierung, Playlists, Playcount und Playerfunktionen wurden nicht absichtlich verändert.
+- Minimum: Android 7.0 / API 24
+- Compile/target: Android 16 / API 36
