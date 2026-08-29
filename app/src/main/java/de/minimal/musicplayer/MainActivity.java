@@ -262,6 +262,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         applySystemInsets();
         initializePlaybackSystem();
         bindActions();
+        registerSystemBackHandler();
         libraryList.setAdapter(adapter);
         selectTab(MODE_SONGS);
         progressHandler.post(progressUpdater);
@@ -1979,59 +1980,82 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         refreshInsets();
     }
 
+    private void registerSystemBackHandler() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                    android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+                    this::handleBack);
+        }
+    }
+
     private void handleBack() {
-        if (infoSettingsOpen) {
+        // Use the actually visible screen first. This avoids stale navigation flags
+        // causing Android Back to exit while a detail/player screen is still open.
+        if (infoSettingsPanel != null && infoSettingsPanel.getVisibility() == View.VISIBLE) {
             infoSettingsOpen = false;
             selectTab(MODE_OTHER);
-        } else if (playerOpen) {
+            return;
+        }
+        if (playerPanel != null && playerPanel.getVisibility() == View.VISIBLE) {
             playerOpen = false;
             playerPanel.setVisibility(View.GONE);
             libraryList.setVisibility(View.VISIBLE);
             selectTab(libraryMode);
-        } else if (playlistDetailOpen) {
+            return;
+        }
+        if (playlistDetailOpen) {
             openPlaylistBrowser();
-        } else if (playlistBrowserOpen) {
+            return;
+        }
+        if (playlistBrowserOpen) {
             selectTab(MODE_OTHER);
             refreshInsets();
-        } else if (rlYearDetailOpen) {
+            return;
+        }
+        if (rlYearDetailOpen) {
             ArrayList<Song> rlSnapshot = new ArrayList<>(rlSongsForBrowser);
             resetGroupSearchUi();
             rlYearBrowserOpen = true;
             rlYearDetailOpen = false;
             openRlYearBrowser(rlSnapshot);
-        } else if (rlYearBrowserOpen) {
+            return;
+        }
+        if (rlYearBrowserOpen) {
             resetGroupSearchUi();
             selectTab(MODE_YEARS);
             refreshInsets();
-        } else if (groupOpen) {
+            return;
+        }
+        if (groupOpen) {
             resetGroupSearchUi();
             selectTab(libraryMode);
             refreshInsets();
-        } else if (!TextUtils.isEmpty(searchQuery)) {
-            if (searchInput != null) searchInput.setText("");
+            return;
+        }
+
+        String rawSearch = searchInput == null ? "" : searchInput.getText().toString();
+        if (!SearchMatcher.normalizeQuery(rawSearch).isEmpty()) {
+            searchInput.setText("");
             searchQuery = "";
             hideSearchKeyboard();
             selectTab(libraryMode);
             refreshInsets();
-        } else if (libraryMode == MODE_GENRES && "RL".equals(seasonCategory)) {
+            return;
+        }
+
+        if (libraryMode == MODE_GENRES && "RL".equals(seasonCategory)) {
             setSeasonCategory("ANIME");
             refreshInsets();
+            return;
         }
+
+        // Only a real top-level screen is allowed to close the activity.
+        finish();
     }
 
     @Override
     public void onBackPressed() {
-        boolean hasInternalBackTarget = infoSettingsOpen
-                || playerOpen
-                || playlistDetailOpen
-                || playlistBrowserOpen
-                || rlYearDetailOpen
-                || rlYearBrowserOpen
-                || groupOpen
-                || !TextUtils.isEmpty(searchQuery)
-                || (libraryMode == MODE_GENRES && "RL".equals(seasonCategory));
-        if (hasInternalBackTarget) handleBack();
-        else super.onBackPressed();
+        handleBack();
     }
 
     private void playCurrentListRandomly() {
