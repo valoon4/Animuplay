@@ -251,7 +251,11 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         activeInstance = new WeakReference<>(this);
         setContentView(R.layout.activity_main);
         bindViews();
-        versionText.setText("Version " + BuildConfig.VERSION_NAME);
+        String installedVersion = "";
+        try {
+            installedVersion = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (Exception ignored) { }
+        versionText.setText(TextUtils.isEmpty(installedVersion) ? "Version" : "Version " + installedVersion);
         initializeGroupFilterRow();
         initializeSeasonModeRow();
         libraryList.setChoiceMode(ListView.CHOICE_MODE_NONE);
