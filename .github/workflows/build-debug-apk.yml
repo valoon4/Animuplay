@@ -8,17 +8,38 @@ on:
       - master
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-debug-apk:
-    name: Build v0.14.7 Debug APK
+    name: Build v0.14.8 Animuplay Debug APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Apply v0.14.8 branding pass
+        shell: bash
+        run: python3 scripts/apply_v0148_branding.py
+
+      - name: Persist v0.14.8 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            app/src/main/java/de/minimal/musicplayer/MainActivity.java \
+            app/src/main/AndroidManifest.xml \
+            app/src/main/res/layout/activity_main.xml \
+            app/build.gradle \
+            README.md
+          if ! git diff --cached --quiet; then
+            git commit -m "Brand pre-release builds as Animuplay v0.14.8 [skip ci]"
+            git push
+          fi
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -75,13 +96,19 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/MinimalMusicPlayer-v0.14.7-debug.apk
-          sha256sum dist/MinimalMusicPlayer-v0.14.7-debug.apk > dist/MinimalMusicPlayer-v0.14.7-debug.apk.sha256
+          cp app/build/outputs/apk/debug/app-debug.apk dist/Animuplay-v0.14.8-debug.apk
+          sha256sum dist/Animuplay-v0.14.8-debug.apk > dist/Animuplay-v0.14.8-debug.apk.sha256
           cp apksigner-report.txt dist/apksigner-report.txt
           {
-            echo "MinimalMusicPlayer v0.14.7 debug"
+            echo "Animuplay v0.14.8 debug"
             echo "Git commit: $GITHUB_SHA"
-            echo "Fix: hide ANIME/RL season selector whenever player opens"
+            echo "Status: final feature-frozen pre-release debug build"
+            echo "Branding: Animuplay working name"
+            echo "Developer: Eugen / @valoon4"
+            echo "Development: AI-assisted coding"
+            echo "Support: valoon@protonmail.com"
+            echo "Issues: valoon4/Animuplay"
+            echo "Package ID remains: de.minimal.musicplayer"
             echo "Gradle: 8.11.1"
             echo "AGP: 8.9.1"
             echo "compileSdk: 36"
@@ -93,7 +120,7 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: MinimalMusicPlayer-v0.14.7-debug
+          name: Animuplay-v0.14.8-debug
           path: dist/
           if-no-files-found: error
           retention-days: 30
