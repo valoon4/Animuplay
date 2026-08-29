@@ -1246,12 +1246,10 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             return;
         }
         emptyState.setVisibility(View.GONE);
-        // SearchMatcher trims/collapses whitespace. Use the normalized value here too,
-        // otherwise a raw whitespace-only EditText recursively bounces between
-        // selectTab() and applySearch() until the stack overflows.
-        String pendingSearch = searchInput == null ? ""
-                : SearchMatcher.normalizeQuery(searchInput.getText().toString());
-        if (!pendingSearch.isEmpty()) {
+        // Preserve the raw query here so a leading quote can enable case-sensitive
+        // direct-quote search. SearchMatcher still treats whitespace-only input as empty.
+        String pendingSearch = searchInput == null ? "" : searchInput.getText().toString();
+        if (!SearchMatcher.isEmptyQuery(pendingSearch)) {
             applySearch(pendingSearch);
             return;
         }
@@ -1325,11 +1323,12 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     }
 
     private void applySearch(String rawQuery) {
-        String query = SearchMatcher.normalizeQuery(rawQuery);
+        boolean directQuote = SearchMatcher.isDirectQuote(rawQuery);
+        String query = SearchMatcher.queryText(rawQuery);
         searchQuery = query;
         if (!query.isEmpty() && seasonModeRow != null) seasonModeRow.setVisibility(View.GONE);
         if (groupOpen && groupSearchEnabled && !playerOpen) {
-            applyGroupSearchAndFilter(query);
+            applyGroupSearchAndFilter(rawQuery);
             return;
         }
         if (libraryMode == MODE_OTHER || groupOpen || playerOpen) return;
@@ -1348,13 +1347,13 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         ArrayList<Song> songMatches = new ArrayList<>();
 
         for (Song song : allSongs) {
-            if (SearchMatcher.contains(song.album, query)) {
+            if (SearchMatcher.matches(song.album, query, directQuote)) {
                 albumMatches.computeIfAbsent(song.album, key -> new ArrayList<>()).add(song);
             }
-            if (SearchMatcher.contains(song.title, query)) {
+            if (SearchMatcher.matches(song.title, query, directQuote)) {
                 songMatches.add(song);
             }
-            if (SearchMatcher.contains(song.artist, query)) {
+            if (SearchMatcher.matches(song.artist, query, directQuote)) {
                 artistMatches.computeIfAbsent(song.artist, key -> new ArrayList<>()).add(song);
             }
         }
@@ -1738,7 +1737,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         if (!groupTypeFiltersEnabled) return;
         groupTypeFilter = type.equals(groupTypeFilter) ? "" : type;
         updateGroupFilterButtons();
-        String query = groupSearchEnabled ? SearchMatcher.normalizeQuery(searchInput.getText().toString()) : "";
+        String query = groupSearchEnabled ? searchInput.getText().toString() : "";
         applyGroupSearchAndFilter(query);
     }
 
@@ -1753,7 +1752,9 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         button.setBackgroundResource(selected ? R.drawable.tab_selected : R.drawable.rounded_surface);
     }
 
-    private void applyGroupSearchAndFilter(String query) {
+    private void applyGroupSearchAndFilter(String rawQuery) {
+        boolean directQuote = SearchMatcher.isDirectQuote(rawQuery);
+        String query = SearchMatcher.queryText(rawQuery);
         if (!groupSearchEnabled && !groupTypeFiltersEnabled) return;
         visibleGroups.clear();
         visibleSongs.clear();
@@ -1761,9 +1762,9 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             if (!TextUtils.isEmpty(groupTypeFilter)
                     && !albumMatchesType(song, groupTypeFilter)) continue;
             if (!query.isEmpty()
-                    && !SearchMatcher.contains(song.title, query)
-                    && !SearchMatcher.contains(song.artist, query)
-                    && !SearchMatcher.contains(song.album, query)) continue;
+                    && !SearchMatcher.matches(song.title, query, directQuote)
+                    && !SearchMatcher.matches(song.artist, query, directQuote)
+                    && !SearchMatcher.matches(song.album, query, directQuote)) continue;
             visibleSongs.add(song);
         }
         if (!playlistDetailOpen) sortSongsByAlbum(visibleSongs);
@@ -2034,7 +2035,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         }
 
         String rawSearch = searchInput == null ? "" : searchInput.getText().toString();
-        if (!SearchMatcher.normalizeQuery(rawSearch).isEmpty()) {
+        if (!SearchMatcher.isEmptyQuery(rawSearch)) {
             searchInput.setText("");
             searchQuery = "";
             hideSearchKeyboard();
