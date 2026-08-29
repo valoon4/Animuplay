@@ -1217,7 +1217,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         if (infoSettingsPanel != null) infoSettingsPanel.setVisibility(View.GONE);
         tabBar.setVisibility(View.VISIBLE);
         backButton.setVisibility(View.GONE);
-        titleText.setText("Musikplayer");
+        titleText.setText("Animuplay");
         updateTabStyles();
 
         visibleSongs.clear();
@@ -2453,7 +2453,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         libraryList.setVisibility(View.GONE);
         ((TextView) findViewById(R.id.emptyTitle)).setText("Keine Musik gefunden");
         ((TextView) findViewById(R.id.emptyMessage)).setText("Im gewählten Ordner wurden keine MP3- oder FLAC-Dateien gefunden.");
-        titleText.setText("Musikplayer");
+        titleText.setText("Animuplay");
         refreshInsets();
     }
 

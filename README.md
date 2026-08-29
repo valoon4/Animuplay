@@ -1,17 +1,20 @@
-# Minimal Music Player / Animuplay
+# Animuplay
 
-A focused offline Android music player for large, personally managed MP3/FLAC libraries.
-The project grew out of a practical need: browse thousands of anime songs by custom season tags, keep real-life music separate, import existing PC playlists, and avoid accounts, cloud libraries, ads, tracking, and broad storage permissions.
+Animuplay is a focused offline Android music player for large, personally managed MP3/FLAC libraries. The project grew out of a practical need: browse thousands of anime songs by custom season tags, keep real-life music separate, import existing PC playlists, and avoid accounts, cloud libraries, ads, tracking, and broad storage permissions.
 
-> The final public app name and package ID will be chosen for the v1.0 release. The current Android app label is still **Musikplayer** and the package is `de.minimal.musicplayer`.
+**Animuplay is the current working app name for all pre-v1.0 builds.** The final public name and package ID will be locked before v1.0. The current package/application ID intentionally remains `de.minimal.musicplayer` so existing development installs continue to update normally.
 
-**Developed by Eugen.**
+**Developed by Eugen · GitHub @valoon4**  
+**AI-assisted coding**
+
+Support / contact: `valoon@protonmail.com`  
+Bug reports and feature requests: GitHub Issues in `valoon4/Animuplay`
 
 ## Current development version
 
-`0.14.3-debug` (`versionCode 21`)
+`0.14.8-debug` (`versionCode 26`)
 
-This is still a development build. The fixed debug signing key in the repository is intentionally public so existing test installs can update in place. It is **not** a release key and must never be used for a public production release.
+This is the final feature-frozen pre-release/debug line before the later v1.0 branding and release-signing pass. The fixed debug signing key in the repository is intentionally public so existing test installs can update in place. It is **not** a release key and must never be used for a public production release.
 
 ## What it does
 
@@ -24,7 +27,7 @@ This is still a development build. The fixed debug signing key in the repository
   - RL = all remaining tags, including `RL_YYYY`, `Special`, `Unbekannt`, etc.
 - Raw MP3/FLAC genre readers preserve custom tags beginning with digits instead of treating them as legacy numeric ID3 genres.
 - Year reader supports common MP3 ID3 and FLAC Vorbis year/date fields.
-- Strict substring search over album, song title and artist.
+- Normal substring search over album, song title and artist, plus a leading-quote direct mode: for example `"K ED` performs a case-sensitive exact substring search without requiring a closing quote.
 - OP/ED filtering for numeric anime Seasons and numeric playlist names.
 - Recursive `.m3u` / `.m3u8` import with Windows paths, relative paths, URI decoding, Unicode, duplicates and missing-entry counts.
 - Imported playlists and music metadata are cached so a normal launch does not walk the full music tree.
@@ -33,7 +36,8 @@ This is still a development build. The fixed debug signing key in the repository
 - Embedded album artwork where available.
 - Long-press the artwork in **Aktuelle Wiedergabe** to share the actual MP3/FLAC file through Android's system share sheet.
 - Play counts increase only after more than 50% was actually listened to; seeking past the threshold does not count.
-- Portable play history at `MinimalMusicPlayer/profile.json` inside the selected music root, with internal fallback.
+- Portable play history remains at the legacy-compatible `MinimalMusicPlayer/profile.json` path inside the selected music root, with internal fallback.
+- Hierarchical Android Back handling returns from player/group/playlist/detail screens before allowing the activity to close.
 
 ## Offline and privacy
 
@@ -89,7 +93,7 @@ The GitHub Actions workflow performs the same debug build and verifies the known
 
 ## Release signing
 
-Do **not** reuse `app/debug.keystore` for a real release. Before v1.0, create a new private release/upload key locally, keep it outside this repository, and add release signing without committing the key or passwords. `.gitignore` already excludes normal release keystore/property names.
+Do **not** reuse `app/debug.keystore` for a real release. Before v1.0, choose the final app name/package ID, create a new private release/upload key locally, keep it outside this repository, and add release signing without committing the key or passwords. `.gitignore` already excludes normal release keystore/property names.
 
 ## Dependencies and licensing
 

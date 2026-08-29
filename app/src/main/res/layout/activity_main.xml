@@ -36,7 +36,7 @@
             android:ellipsize="marquee"
             android:marqueeRepeatLimit="marquee_forever"
             android:singleLine="true"
-            android:text="Musikplayer"
+            android:text="Animuplay"
             android:textColor="@color/text_primary"
             android:textSize="20sp"
             android:textStyle="bold" />
@@ -252,10 +252,69 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="28dp"
                 android:gravity="center"
-                android:text="Developed by Eugen"
-                android:textColor="@color/text_primary"
-                android:textSize="18sp"
+                android:text="Animuplay"
+                android:textColor="@color/accent"
+                android:textSize="22sp"
                 android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center"
+                android:text="Developed by Eugen · @valoon4"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:gravity="center"
+                android:text="AI-assisted coding"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="28dp"
+                android:gravity="center"
+                android:text="SUPPORT / KONTAKT"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:gravity="center"
+                android:text="valoon@protonmail.com"
+                android:textColor="@color/accent"
+                android:textIsSelectable="true"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:gravity="center"
+                android:text="BUGREPORTS &amp; FEATURE REQUESTS"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:gravity="center"
+                android:text="GitHub Issues · valoon4/Animuplay"
+                android:textColor="@color/accent"
+                android:textIsSelectable="true"
+                android:textSize="15sp" />
         </LinearLayout>
 
         <LinearLayout
