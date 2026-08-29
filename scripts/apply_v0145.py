@@ -7,6 +7,9 @@ GRADLE = Path("app/build.gradle")
 MANIFEST = Path("app/src/main/AndroidManifest.xml")
 WORKFLOW = Path(".github/workflows/build-debug-apk.yml")
 
+# actions/checkout uses a shallow clone; fetch the exact clean v0.14.3 base explicitly.
+subprocess.run(["git", "fetch", "--depth=1", "origin", BASE], check=True)
+
 
 def old(path: str) -> str:
     return subprocess.check_output(["git", "show", f"{BASE}:{path}"], text=True)
