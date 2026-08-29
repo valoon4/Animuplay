@@ -20,22 +20,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Apply v0.14.9 playlist checker
+      - name: Fix automatic version label
         shell: bash
-        run: python3 scripts/apply_v0149_playlist_check.py
+        run: python3 scripts/fix_v0149_version_label.py
 
-      - name: Persist v0.14.9 source
+      - name: Persist version label fix
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/src/main/java/de/minimal/musicplayer/MainActivity.java \
-                  app/src/main/java/de/minimal/musicplayer/PlaylistIndex.java \
-                  app/src/main/res/layout/activity_main.xml \
-                  app/build.gradle README.md
+          git add app/src/main/java/de/minimal/musicplayer/MainActivity.java
           if ! git diff --cached --quiet; then
-            git commit -m "Add persistent playlist verification in v0.14.9 [skip ci]"
+            git commit -m "Fix automatic version label in v0.14.9 [skip ci]"
             git push
           fi
 
@@ -102,7 +99,7 @@ jobs:
             echo "Git commit: $GITHUB_SHA"
             echo "Feature: Playlists prüfen diagnostic screen"
             echo "Verification: successful playlist checks persist until playlist content changes"
-            echo "Info: VERSION_NAME is shown automatically in Infos & Einstellungen"
+            echo "Info: installed version is shown automatically in Infos & Einstellungen"
             echo "Developer: Eugen / @valoon4"
             echo "Development: AI-assisted coding"
             echo "Support: valoon@protonmail.com"
