@@ -2278,8 +2278,10 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             return;
         }
 
-        // Only a real top-level screen is allowed to close the activity.
-        finish();
+        // Top-level Back behaves like Home: keep the activity/process alive so
+        // current playback, queue, MediaSession and notification continue.
+        // Only the explicit playback X/stop action calls stopPlaybackAndDismiss().
+        moveTaskToBack(true);
     }
 
     @Override
