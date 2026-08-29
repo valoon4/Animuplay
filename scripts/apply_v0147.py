@@ -9,8 +9,8 @@ gradle = GRADLE.read_text(encoding="utf-8")
 needle = '''        searchRow.setVisibility(View.GONE);\n        if (groupFilterRow != null) groupFilterRow.setVisibility(View.GONE);\n        alphabetIndex.setVisibility(View.GONE);'''
 replacement = '''        searchRow.setVisibility(View.GONE);\n        if (seasonModeRow != null) seasonModeRow.setVisibility(View.GONE);\n        if (groupFilterRow != null) groupFilterRow.setVisibility(View.GONE);\n        alphabetIndex.setVisibility(View.GONE);'''
 
-# Apply only inside openPlayer(): the season selector belongs to the Seasons overview,
-# so it must never remain visible over the full player screen.
+# Apply only inside openPlayer(): the ANIME/RL selector belongs to Seasons,
+# and must be hidden before the full player becomes visible.
 player_start = main.index("    private void openPlayer() {")
 player_end = main.index("    private void registerSystemBackHandler()", player_start)
 player_block = main[player_start:player_end]
