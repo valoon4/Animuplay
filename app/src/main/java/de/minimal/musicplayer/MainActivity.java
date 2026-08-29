@@ -2007,12 +2007,30 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             resetGroupSearchUi();
             selectTab(libraryMode);
             refreshInsets();
+        } else if (!TextUtils.isEmpty(searchQuery)) {
+            if (searchInput != null) searchInput.setText("");
+            searchQuery = "";
+            hideSearchKeyboard();
+            selectTab(libraryMode);
+            refreshInsets();
+        } else if (libraryMode == MODE_GENRES && "RL".equals(seasonCategory)) {
+            setSeasonCategory("ANIME");
+            refreshInsets();
         }
     }
 
     @Override
     public void onBackPressed() {
-        if (infoSettingsOpen || playerOpen || groupOpen) handleBack();
+        boolean hasInternalBackTarget = infoSettingsOpen
+                || playerOpen
+                || playlistDetailOpen
+                || playlistBrowserOpen
+                || rlYearDetailOpen
+                || rlYearBrowserOpen
+                || groupOpen
+                || !TextUtils.isEmpty(searchQuery)
+                || (libraryMode == MODE_GENRES && "RL".equals(seasonCategory));
+        if (hasInternalBackTarget) handleBack();
         else super.onBackPressed();
     }
 
