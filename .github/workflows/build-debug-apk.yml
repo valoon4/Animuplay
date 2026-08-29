@@ -30,7 +30,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/src/main/java/de/minimal/musicplayer/MainActivity.java app/src/main/AndroidManifest.xml app/build.gradle .github/workflows/build-debug-apk.yml
+          git add app/src/main/java/de/minimal/musicplayer/MainActivity.java app/src/main/AndroidManifest.xml app/build.gradle
           if ! git diff --cached --quiet; then
             git commit -m "Build v0.14.5 from v0.14.3 with modern back handling [skip ci]"
             git push
