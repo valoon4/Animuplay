@@ -8,17 +8,33 @@ on:
       - master
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-debug-apk:
-    name: Build v0.14.4 Debug APK
+    name: Build v0.14.5 Debug APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Roll back v0.14.4 and apply new back handling
+        shell: bash
+        run: python3 scripts/apply_v0145.py
+
+      - name: Persist v0.14.5 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/de/minimal/musicplayer/MainActivity.java app/src/main/AndroidManifest.xml app/build.gradle .github/workflows/build-debug-apk.yml
+          if ! git diff --cached --quiet; then
+            git commit -m "Build v0.14.5 from v0.14.3 with modern back handling [skip ci]"
+            git push
+          fi
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -75,12 +91,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/MinimalMusicPlayer-v0.14.4-debug.apk
-          sha256sum dist/MinimalMusicPlayer-v0.14.4-debug.apk > dist/MinimalMusicPlayer-v0.14.4-debug.apk.sha256
+          cp app/build/outputs/apk/debug/app-debug.apk dist/MinimalMusicPlayer-v0.14.5-debug.apk
+          sha256sum dist/MinimalMusicPlayer-v0.14.5-debug.apk > dist/MinimalMusicPlayer-v0.14.5-debug.apk.sha256
           cp apksigner-report.txt dist/apksigner-report.txt
           {
-            echo "MinimalMusicPlayer v0.14.4 debug"
-            echo "Git commit: $GITHUB_SHA"
+            echo "MinimalMusicPlayer v0.14.5 debug"
+            echo "Git commit: $(git rev-parse HEAD)"
+            echo "Base source: clean v0.14.3"
+            echo "Back handling: Android OnBackInvokedCallback + visible-screen fallback"
             echo "Gradle: 8.11.1"
             echo "AGP: 8.9.1"
             echo "compileSdk: 36"
@@ -92,7 +110,7 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: MinimalMusicPlayer-v0.14.4-debug
+          name: MinimalMusicPlayer-v0.14.5-debug
           path: dist/
           if-no-files-found: error
           retention-days: 30
