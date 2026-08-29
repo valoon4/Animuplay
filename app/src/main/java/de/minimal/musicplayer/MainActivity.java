@@ -1970,6 +1970,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         emptyState.setVisibility(View.GONE);
         tabBar.setVisibility(View.GONE);
         searchRow.setVisibility(View.GONE);
+        if (seasonModeRow != null) seasonModeRow.setVisibility(View.GONE);
         if (groupFilterRow != null) groupFilterRow.setVisibility(View.GONE);
         alphabetIndex.setVisibility(View.GONE);
         otherPanel.setVisibility(View.GONE);
