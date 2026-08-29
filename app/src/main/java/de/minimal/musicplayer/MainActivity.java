@@ -127,6 +127,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private Button playlistsButton;
     private Button infoSettingsButton;
     private Button refreshLibraryButton;
+    private Button playlistCheckButton;
     private Button clearSearchButton;
     private Button groupOpFilterButton;
     private Button groupEdFilterButton;
@@ -149,6 +150,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private SeekBar seekBar;
     private TextView currentTime;
     private TextView totalTime;
+    private TextView versionText;
 
     private final LibraryAdapter adapter = new LibraryAdapter();
     private MediaPlayer mediaPlayer;
@@ -176,6 +178,8 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private boolean rlYearBrowserOpen;
     private boolean rlYearDetailOpen;
     private boolean infoSettingsOpen;
+    private boolean playlistCheckBrowserOpen;
+    private boolean playlistCheckDetailOpen;
     private boolean playCountedThisCycle;
     private long listenedThisCycleMs;
     private long lastProgressRealtimeMs;
@@ -247,6 +251,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         activeInstance = new WeakReference<>(this);
         setContentView(R.layout.activity_main);
         bindViews();
+        versionText.setText("Version " + BuildConfig.VERSION_NAME);
         initializeGroupFilterRow();
         initializeSeasonModeRow();
         libraryList.setChoiceMode(ListView.CHOICE_MODE_NONE);
@@ -302,6 +307,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         playlistsButton = findViewById(R.id.playlistsButton);
         infoSettingsButton = findViewById(R.id.infoSettingsButton);
         refreshLibraryButton = findViewById(R.id.refreshLibraryButton);
+        playlistCheckButton = findViewById(R.id.playlistCheckButton);
         clearSearchButton = findViewById(R.id.clearSearchButton);
         searchInput = findViewById(R.id.searchInput);
         alphabetIndex = findViewById(R.id.alphabetIndex);
@@ -320,6 +326,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         seekBar = findViewById(R.id.seekBar);
         currentTime = findViewById(R.id.currentTime);
         totalTime = findViewById(R.id.totalTime);
+        versionText = findViewById(R.id.versionText);
     }
 
     private void initializeGroupFilterRow() {
@@ -440,7 +447,8 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
                 Song song = songsByUri.get(uri);
                 if (song != null) matched.add(song);
             }
-            restored.add(new ImportedPlaylist(entry.name, entry.sourceRelativePath, matched,
+            restored.add(new ImportedPlaylist(entry.name, entry.sourceRelativePath,
+                    entry.sourceUri, entry.sourceSignature, entry.verified, matched,
                     entry.totalEntries, entry.missingEntries));
         }
         return restored;
@@ -453,7 +461,8 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             ArrayList<String> uris = new ArrayList<>();
             for (Song song : playlist.songs) uris.add(song.uri.toString());
             entries.add(new PlaylistIndex.Entry(playlist.name, playlist.sourceRelativePath,
-                    uris, playlist.totalEntries, playlist.missingEntries));
+                    playlist.sourceUri, playlist.sourceSignature, playlist.verified, uris,
+                    playlist.totalEntries, playlist.missingEntries));
         }
         return entries;
     }
@@ -495,6 +504,15 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         alphabetIndex.setOnLetterSelectedListener(this::jumpToLetter);
         topPlayedButton.setOnClickListener(v -> openTopPlayed());
         infoSettingsButton.setOnClickListener(v -> openInfoSettings());
+        playlistCheckButton.setOnClickListener(v -> {
+            if (!playlistScanCompleted) {
+                Toast.makeText(this, "Playlists werden noch geladen.", Toast.LENGTH_SHORT).show();
+            } else if (importedPlaylists.isEmpty()) {
+                Toast.makeText(this, "Keine Playlists gefunden.", Toast.LENGTH_SHORT).show();
+            } else {
+                openPlaylistCheckBrowser();
+            }
+        });
         refreshLibraryButton.setOnClickListener(v -> {
             if (currentTreeUri == null) {
                 Toast.makeText(this, "Kein Musikordner ausgewählt.", Toast.LENGTH_SHORT).show();
@@ -523,6 +541,13 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         });
 
         libraryList.setOnItemClickListener((parent, view, position, id) -> {
+            if (playlistCheckDetailOpen) return;
+            if (playlistCheckBrowserOpen) {
+                if (position >= 0 && position < importedPlaylists.size()) {
+                    checkPlaylist(importedPlaylists.get(position));
+                }
+                return;
+            }
             if (!TextUtils.isEmpty(searchQuery) && !groupOpen) {
                 if (position < 0 || position >= searchRows.size()) return;
                 SearchResultRow result = searchRows.get(position);
@@ -830,6 +855,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
 
         scanExecutor.execute(() -> {
             ArrayList<Song> cachedSongs = LibraryIndex.load(this, treeKey);
+            PlaylistIndex.Snapshot previousPlaylistSnapshot = PlaylistIndex.load(this, treeKey);
             HashMap<String, Integer> folderPlayCounts = PlayHistory.loadFromMusicFolder(
                     getContentResolver(), treeUri);
             sortSongsByTitle(cachedSongs);
@@ -910,7 +936,8 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
                 sortSongsByTitle(found);
                 LibraryIndex.save(this, treeKey, found);
 
-                PlaylistImportBatch playlistBatch = importPlaylists(playlistFiles, files, found);
+                PlaylistImportBatch playlistBatch = importPlaylists(playlistFiles, files, found,
+                        previousPlaylistSnapshot.entries);
                 foundPlaylists.addAll(playlistBatch.playlists);
                 playlistReadErrorCount = playlistBatch.readErrors;
                 PlaylistIndex.save(this, treeKey, cachePlaylistEntries(foundPlaylists));
@@ -1088,7 +1115,8 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
 
     private PlaylistImportBatch importPlaylists(List<PendingPlaylist> playlistFiles,
                                                 List<PendingAudio> audioFiles,
-                                                List<Song> songs) {
+                                                List<Song> songs,
+                                                List<PlaylistIndex.Entry> previousEntries) {
         HashMap<String, String> uriByRelativePath = new HashMap<>();
         HashMap<String, String> uniqueUriByFileName = new HashMap<>();
         for (PendingAudio audio : audioFiles) {
@@ -1106,12 +1134,22 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         HashMap<String, Song> songByUri = new HashMap<>();
         for (Song song : songs) songByUri.put(song.uri.toString(), song);
 
+        HashMap<String, PlaylistIndex.Entry> previousByPath = new HashMap<>();
+        for (PlaylistIndex.Entry entry : previousEntries) {
+            previousByPath.put(M3uPlaylistReader.key(entry.sourceRelativePath), entry);
+        }
+
         ArrayList<ImportedPlaylist> result = new ArrayList<>();
         int readErrors = 0;
         for (PendingPlaylist playlistFile : playlistFiles) {
             try {
                 ArrayList<String> entries = M3uPlaylistReader.readEntries(
                         getContentResolver(), playlistFile.uri, playlistFile.fileName);
+                String sourceSignature = playlistSignature(entries);
+                PlaylistIndex.Entry previous = previousByPath.get(
+                        M3uPlaylistReader.key(playlistFile.relativePath));
+                boolean verified = previous != null && previous.verified
+                        && sourceSignature.equals(previous.sourceSignature);
                 ArrayList<Song> matchedSongs = new ArrayList<>();
                 int missing = 0;
                 for (String entry : entries) {
@@ -1131,7 +1169,8 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
                     if (song == null) missing++; else matchedSongs.add(song);
                 }
                 result.add(new ImportedPlaylist(stripExtension(playlistFile.fileName),
-                        playlistFile.relativePath, matchedSongs, entries.size(), missing));
+                        playlistFile.relativePath, playlistFile.uri.toString(), sourceSignature,
+                        verified, matchedSongs, entries.size(), missing));
             } catch (IOException | RuntimeException ignored) {
                 readErrors++;
             }
@@ -1157,6 +1196,20 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             }
         }
         return new PlaylistImportBatch(result, readErrors);
+    }
+
+    private static String playlistSignature(List<String> entries) {
+        long hash = 0xcbf29ce484222325L;
+        for (String entry : entries) {
+            String value = entry == null ? "" : entry;
+            for (int i = 0; i < value.length(); i++) {
+                hash ^= value.charAt(i);
+                hash *= 0x100000001b3L;
+            }
+            hash ^= '\n';
+            hash *= 0x100000001b3L;
+        }
+        return Long.toHexString(hash) + ":" + entries.size();
     }
 
     private Song readMetadata(PendingAudio audio) {
@@ -1206,6 +1259,8 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         rlYearBrowserOpen = false;
         rlYearDetailOpen = false;
         infoSettingsOpen = false;
+        playlistCheckBrowserOpen = false;
+        playlistCheckDetailOpen = false;
         rlSongsForBrowser.clear();
         if (groupFilterRow != null) groupFilterRow.setVisibility(View.GONE);
         if (seasonModeRow != null) seasonModeRow.setVisibility(View.GONE);
@@ -1863,6 +1918,8 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
 
     private void openInfoSettings() {
         infoSettingsOpen = true;
+        playlistCheckBrowserOpen = false;
+        playlistCheckDetailOpen = false;
         groupOpen = false;
         playerOpen = false;
         playlistBrowserOpen = false;
@@ -1879,6 +1936,164 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         randomPlayButton.setVisibility(View.GONE);
         backButton.setVisibility(View.VISIBLE);
         titleText.setText("Infos & Einstellungen");
+        refreshInsets();
+    }
+
+    private void openPlaylistCheckBrowser() {
+        infoSettingsOpen = false;
+        playlistCheckBrowserOpen = true;
+        playlistCheckDetailOpen = false;
+        groupOpen = false;
+        playerOpen = false;
+        playlistBrowserOpen = false;
+        playlistDetailOpen = false;
+        visibleSongs.clear();
+        visibleGroups.clear();
+        for (ImportedPlaylist playlist : importedPlaylists) {
+            visibleGroups.add(GroupRow.playlistCheck(playlist));
+        }
+        infoSettingsPanel.setVisibility(View.GONE);
+        playerPanel.setVisibility(View.GONE);
+        otherPanel.setVisibility(View.GONE);
+        emptyState.setVisibility(View.GONE);
+        libraryList.setVisibility(View.VISIBLE);
+        tabBar.setVisibility(View.GONE);
+        searchRow.setVisibility(View.GONE);
+        if (seasonModeRow != null) seasonModeRow.setVisibility(View.GONE);
+        if (groupFilterRow != null) groupFilterRow.setVisibility(View.GONE);
+        alphabetIndex.setVisibility(View.GONE);
+        randomPlayButton.setVisibility(View.GONE);
+        backButton.setVisibility(View.VISIBLE);
+        titleText.setText("Playlists prüfen");
+        adapter.notifyDataSetChanged();
+        scrollLibraryToTop();
+        refreshInsets();
+    }
+
+    private void checkPlaylist(ImportedPlaylist playlist) {
+        if (playlist == null || TextUtils.isEmpty(playlist.sourceUri)) {
+            Toast.makeText(this, "Playlist-Quelle nicht verfügbar. Bibliothek einmal aktualisieren.",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+        final ArrayList<Song> songs = new ArrayList<>(allSongs);
+        titleText.setText("Prüfe · " + playlist.name + " …");
+        scanExecutor.execute(() -> {
+            ArrayList<String> missing = new ArrayList<>();
+            String signature;
+            String error = null;
+            try {
+                String fileName = M3uPlaylistReader.fileName(playlist.sourceRelativePath);
+                ArrayList<String> entries = M3uPlaylistReader.readEntries(
+                        getContentResolver(), Uri.parse(playlist.sourceUri), fileName);
+                signature = playlistSignature(entries);
+
+                HashMap<String, String> uriByRelativePath = new HashMap<>();
+                HashMap<String, String> uniqueUriByFileName = new HashMap<>();
+                for (Song song : songs) {
+                    String uri = song.uri.toString();
+                    String relativePath = relativePathForSong(song);
+                    if (!TextUtils.isEmpty(relativePath)) {
+                        uriByRelativePath.put(M3uPlaylistReader.key(relativePath), uri);
+                    }
+                    String fileKey = M3uPlaylistReader.key(song.fileName);
+                    if (uniqueUriByFileName.containsKey(fileKey)) {
+                        uniqueUriByFileName.put(fileKey, null);
+                    } else {
+                        uniqueUriByFileName.put(fileKey, uri);
+                    }
+                }
+
+                for (String entry : entries) {
+                    String songUri = M3uPlaylistReader.matchSongUri(
+                            entry, uriByRelativePath, uniqueUriByFileName);
+                    if (songUri == null) {
+                        int parentSlash = playlist.sourceRelativePath.lastIndexOf('/');
+                        if (parentSlash > 0) {
+                            String playlistParent = playlist.sourceRelativePath.substring(0, parentSlash);
+                            String relativeToPlaylist = M3uPlaylistReader.normalizeRelativePath(
+                                    playlistParent + "/" + entry);
+                            songUri = M3uPlaylistReader.matchSongUri(
+                                    relativeToPlaylist, uriByRelativePath, uniqueUriByFileName);
+                        }
+                    }
+                    if (songUri == null) missing.add(entry);
+                }
+            } catch (IOException | RuntimeException ex) {
+                signature = playlist.sourceSignature;
+                error = ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
+            }
+
+            final String checkedSignature = signature;
+            final String checkError = error;
+            mainHandler.post(() -> {
+                if (checkError != null) {
+                    playlist.verified = false;
+                    persistPlaylistCheckState();
+                    openPlaylistCheckBrowser();
+                    Toast.makeText(this, "Playlist konnte nicht geprüft werden: " + checkError,
+                            Toast.LENGTH_LONG).show();
+                    return;
+                }
+                playlist.sourceSignature = checkedSignature;
+                playlist.verified = missing.isEmpty();
+                persistPlaylistCheckState();
+                if (missing.isEmpty()) {
+                    openPlaylistCheckBrowser();
+                    Toast.makeText(this, "✓ Keine fehlenden Einträge", Toast.LENGTH_SHORT).show();
+                } else {
+                    openPlaylistCheckResult(playlist, missing);
+                }
+            });
+        });
+    }
+
+    private String relativePathForSong(Song song) {
+        if (song == null || song.uri == null || currentTreeUri == null) return song == null ? "" : song.fileName;
+        try {
+            String rootId = DocumentsContract.getTreeDocumentId(currentTreeUri);
+            String documentId = DocumentsContract.getDocumentId(song.uri);
+            String relative = documentId;
+            if (!TextUtils.isEmpty(rootId) && relative.startsWith(rootId)) {
+                relative = relative.substring(rootId.length());
+            }
+            relative = relative.replace('\\', '/');
+            while (relative.startsWith("/") || relative.startsWith(":")) {
+                relative = relative.substring(1);
+            }
+            return M3uPlaylistReader.normalizeRelativePath(relative);
+        } catch (RuntimeException ignored) {
+            return song.fileName;
+        }
+    }
+
+    private void persistPlaylistCheckState() {
+        if (currentTreeUri == null) return;
+        PlaylistIndex.save(this, currentTreeUri.toString(), cachePlaylistEntries(importedPlaylists));
+    }
+
+    private void openPlaylistCheckResult(ImportedPlaylist playlist, List<String> missing) {
+        infoSettingsOpen = false;
+        playlistCheckBrowserOpen = false;
+        playlistCheckDetailOpen = true;
+        groupOpen = false;
+        visibleSongs.clear();
+        visibleGroups.clear();
+        for (String entry : missing) visibleGroups.add(GroupRow.missingPlaylistEntry(entry));
+        infoSettingsPanel.setVisibility(View.GONE);
+        otherPanel.setVisibility(View.GONE);
+        emptyState.setVisibility(View.GONE);
+        libraryList.setVisibility(View.VISIBLE);
+        tabBar.setVisibility(View.GONE);
+        searchRow.setVisibility(View.GONE);
+        if (seasonModeRow != null) seasonModeRow.setVisibility(View.GONE);
+        if (groupFilterRow != null) groupFilterRow.setVisibility(View.GONE);
+        alphabetIndex.setVisibility(View.GONE);
+        randomPlayButton.setVisibility(View.GONE);
+        backButton.setVisibility(View.VISIBLE);
+        titleText.setText(playlist.name + " · " + missing.size() + " nicht gefunden");
+        adapter.notifyDataSetChanged();
+        scrollLibraryToTop();
         refreshInsets();
     }
 
@@ -1993,6 +2208,14 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private void handleBack() {
         // Use the actually visible screen first. This avoids stale navigation flags
         // causing Android Back to exit while a detail/player screen is still open.
+        if (playlistCheckDetailOpen) {
+            openPlaylistCheckBrowser();
+            return;
+        }
+        if (playlistCheckBrowserOpen) {
+            openInfoSettings();
+            return;
+        }
         if (infoSettingsPanel != null && infoSettingsPanel.getVisibility() == View.VISIBLE) {
             infoSettingsOpen = false;
             selectTab(MODE_OTHER);
@@ -2653,6 +2876,9 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
                 holder = (RowHolder) convertView.getTag();
             }
 
+            holder.icon.setTextColor(getColor(R.color.accent));
+            holder.trailing.setTextColor(getColor(R.color.text_secondary));
+
             if (!TextUtils.isEmpty(searchQuery) && !groupOpen) {
                 SearchResultRow result = searchRows.get(position);
                 if (result.type == SearchResultRow.TYPE_SONG) {
@@ -2692,12 +2918,25 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
                         : formatDuration(song.durationMs));
             } else {
                 GroupRow group = visibleGroups.get(position);
-                holder.icon.setText(group.playlistGroup ? "≡" : (group.albumGroup ? "▣" : "▤"));
-                holder.primary.setText(group.name);
-                holder.secondary.setText(group.subtitle());
-                holder.trailing.setText(group.playlistGroup
-                        ? group.songs.size() + "/" + group.playlistTotalEntries
-                        : group.songs.size() + " Titel");
+                if (group.playlistCheckGroup) {
+                    holder.icon.setText(group.playlistVerified ? "✓" : "?");
+                    if (group.playlistVerified) holder.icon.setTextColor(Color.rgb(76, 175, 80));
+                    holder.primary.setText(group.name);
+                    holder.secondary.setText(group.subtitle());
+                    holder.trailing.setText("");
+                } else if (group.diagnosticMissing) {
+                    holder.icon.setText("!");
+                    holder.primary.setText(group.name);
+                    holder.secondary.setText("Nicht gefunden");
+                    holder.trailing.setText("");
+                } else {
+                    holder.icon.setText(group.playlistGroup ? "≡" : (group.albumGroup ? "▣" : "▤"));
+                    holder.primary.setText(group.name);
+                    holder.secondary.setText(group.subtitle());
+                    holder.trailing.setText(group.playlistGroup
+                            ? group.songs.size() + "/" + group.playlistTotalEntries
+                            : group.songs.size() + " Titel");
+                }
             }
             return convertView;
         }
@@ -2735,14 +2974,21 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private static final class ImportedPlaylist {
         String name;
         final String sourceRelativePath;
+        final String sourceUri;
+        String sourceSignature;
+        boolean verified;
         final ArrayList<Song> songs;
         final int totalEntries;
         final int missingEntries;
 
-        ImportedPlaylist(String name, String sourceRelativePath, ArrayList<Song> songs,
+        ImportedPlaylist(String name, String sourceRelativePath, String sourceUri,
+                         String sourceSignature, boolean verified, ArrayList<Song> songs,
                          int totalEntries, int missingEntries) {
             this.name = name;
             this.sourceRelativePath = sourceRelativePath;
+            this.sourceUri = sourceUri;
+            this.sourceSignature = sourceSignature;
+            this.verified = verified;
             this.songs = songs;
             this.totalEntries = totalEntries;
             this.missingEntries = missingEntries;
@@ -2822,30 +3068,50 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         final ArrayList<Song> songs;
         final boolean albumGroup;
         final boolean playlistGroup;
+        final boolean playlistCheckGroup;
+        final boolean playlistVerified;
+        final boolean diagnosticMissing;
         final int playlistTotalEntries;
         final int playlistMissingEntries;
 
         GroupRow(String name, ArrayList<Song> songs, boolean albumGroup) {
-            this(name, songs, albumGroup, false, songs.size(), 0);
+            this(name, songs, albumGroup, false, false, false, false, songs.size(), 0);
         }
 
         private GroupRow(String name, ArrayList<Song> songs, boolean albumGroup,
-                         boolean playlistGroup, int playlistTotalEntries,
-                         int playlistMissingEntries) {
+                         boolean playlistGroup, boolean playlistCheckGroup,
+                         boolean playlistVerified, boolean diagnosticMissing,
+                         int playlistTotalEntries, int playlistMissingEntries) {
             this.name = name;
             this.songs = songs;
             this.albumGroup = albumGroup;
             this.playlistGroup = playlistGroup;
+            this.playlistCheckGroup = playlistCheckGroup;
+            this.playlistVerified = playlistVerified;
+            this.diagnosticMissing = diagnosticMissing;
             this.playlistTotalEntries = playlistTotalEntries;
             this.playlistMissingEntries = playlistMissingEntries;
         }
 
         static GroupRow playlist(ImportedPlaylist playlist) {
-            return new GroupRow(playlist.name, playlist.songs, false, true,
+            return new GroupRow(playlist.name, playlist.songs, false, true, false, false, false,
                     playlist.totalEntries, playlist.missingEntries);
         }
 
+        static GroupRow playlistCheck(ImportedPlaylist playlist) {
+            return new GroupRow(playlist.name, new ArrayList<>(), false, false, true,
+                    playlist.verified, false, playlist.totalEntries, playlist.missingEntries);
+        }
+
+        static GroupRow missingPlaylistEntry(String entry) {
+            return new GroupRow(entry, new ArrayList<>(), false, false, false, false, true, 0, 0);
+        }
+
         String subtitle() {
+            if (playlistCheckGroup) {
+                return playlistVerified ? "Geprüft · keine fehlenden Einträge" : "Antippen zum Prüfen";
+            }
+            if (diagnosticMissing) return "Nicht gefunden";
             if (playlistGroup) {
                 if (playlistTotalEntries == 0) return "Leere Playlist";
                 String status = songs.size() + " von " + playlistTotalEntries + " Titeln gefunden";

@@ -12,9 +12,9 @@ Bug reports and feature requests: GitHub Issues in `valoon4/Animuplay`
 
 ## Current development version
 
-`0.14.8-debug` (`versionCode 26`)
+`0.14.9-debug` (`versionCode 27`)
 
-This is the final feature-frozen pre-release/debug line before the later v1.0 branding and release-signing pass. The fixed debug signing key in the repository is intentionally public so existing test installs can update in place. It is **not** a release key and must never be used for a public production release.
+This is a feature-frozen pre-release/debug line before the later v1.0 branding and release-signing pass. The fixed debug signing key in the repository is intentionally public so existing test installs can update in place. It is **not** a release key and must never be used for a public production release.
 
 ## What it does
 
@@ -30,6 +30,7 @@ This is the final feature-frozen pre-release/debug line before the later v1.0 br
 - Normal substring search over album, song title and artist, plus a leading-quote direct mode: for example `"K ED` performs a case-sensitive exact substring search without requiring a closing quote.
 - OP/ED filtering for numeric anime Seasons and numeric playlist names.
 - Recursive `.m3u` / `.m3u8` import with Windows paths, relative paths, URI decoding, Unicode, duplicates and missing-entry counts.
+- **Playlists prüfen** re-checks any imported playlist on demand, lists only entries that cannot be matched, and keeps a persistent green verification check until that playlist file changes on a later library scan.
 - Imported playlists and music metadata are cached so a normal launch does not walk the full music tree.
 - Playback queue is internal only; no separate queue-management UI.
 - Repeat-one, previous/next, random playback, Audio Focus, MediaSession, lock-screen progress and media controls.

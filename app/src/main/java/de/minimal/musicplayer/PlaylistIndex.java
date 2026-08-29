@@ -18,7 +18,7 @@ import java.util.List;
 /** Persistent imported-playlist snapshot so normal app launches need no folder walk. */
 final class PlaylistIndex {
     private static final int MAGIC = 0x4D4D5050; // MMPP
-    private static final int VERSION = 1;
+    private static final int VERSION = 2;
     private static final int MAX_PLAYLISTS = 50_000;
     private static final int MAX_URIS = 1_000_000;
     private static final int MAX_STRING_BYTES = 1024 * 1024;
@@ -29,14 +29,20 @@ final class PlaylistIndex {
     static final class Entry {
         final String name;
         final String sourceRelativePath;
+        final String sourceUri;
+        final String sourceSignature;
+        final boolean verified;
         final ArrayList<String> songUris;
         final int totalEntries;
         final int missingEntries;
 
-        Entry(String name, String sourceRelativePath, ArrayList<String> songUris,
-              int totalEntries, int missingEntries) {
+        Entry(String name, String sourceRelativePath, String sourceUri, String sourceSignature,
+              boolean verified, ArrayList<String> songUris, int totalEntries, int missingEntries) {
             this.name = name;
             this.sourceRelativePath = sourceRelativePath;
+            this.sourceUri = sourceUri;
+            this.sourceSignature = sourceSignature;
+            this.verified = verified;
             this.songUris = songUris;
             this.totalEntries = totalEntries;
             this.missingEntries = missingEntries;
@@ -68,13 +74,17 @@ final class PlaylistIndex {
             for (int i = 0; i < count; i++) {
                 String name = readString(input);
                 String path = readString(input);
+                String sourceUri = readString(input);
+                String sourceSignature = readString(input);
+                boolean verified = input.readBoolean();
                 int total = input.readInt();
                 int missing = input.readInt();
                 int uriCount = input.readInt();
                 if (uriCount < 0 || uriCount > MAX_URIS) throw new IOException("Invalid URI count");
                 ArrayList<String> uris = new ArrayList<>(uriCount);
                 for (int u = 0; u < uriCount; u++) uris.add(readString(input));
-                entries.add(new Entry(name, path, uris, total, missing));
+                entries.add(new Entry(name, path, sourceUri, sourceSignature, verified,
+                        uris, total, missing));
             }
             return new Snapshot(true, entries);
         } catch (IOException | RuntimeException ignored) {
@@ -96,6 +106,9 @@ final class PlaylistIndex {
             for (Entry entry : entries) {
                 writeString(output, entry.name);
                 writeString(output, entry.sourceRelativePath);
+                writeString(output, entry.sourceUri);
+                writeString(output, entry.sourceSignature);
+                output.writeBoolean(entry.verified);
                 output.writeInt(entry.totalEntries);
                 output.writeInt(entry.missingEntries);
                 output.writeInt(entry.songUris.size());
