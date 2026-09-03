@@ -87,7 +87,7 @@ jobs:
           java-version: '17'
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug
+        run: chmod +x gradlew && ./gradlew assembleDebug
 
       - name: Commit Superseason filter
         run: |
