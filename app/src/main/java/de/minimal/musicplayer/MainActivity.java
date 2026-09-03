@@ -131,6 +131,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private Button clearSearchButton;
     private Button groupOpFilterButton;
     private Button groupEdFilterButton;
+    private Button groupSuperFilterButton;
     private Button seasonAnimeButton;
     private Button seasonRlButton;
     private EditText searchInput;
@@ -341,11 +342,15 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
 
         groupOpFilterButton = makeGroupFilterButton("OP");
         groupEdFilterButton = makeGroupFilterButton("ED");
+        groupSuperFilterButton = makeGroupFilterButton("SUPER");
         groupFilterRow.addView(groupOpFilterButton,
                 new LinearLayout.LayoutParams(0, dp(44), 1f));
         LinearLayout.LayoutParams edParams = new LinearLayout.LayoutParams(0, dp(44), 1f);
         edParams.setMarginStart(dp(6));
         groupFilterRow.addView(groupEdFilterButton, edParams);
+        LinearLayout.LayoutParams superParams = new LinearLayout.LayoutParams(0, dp(44), 1f);
+        superParams.setMarginStart(dp(6));
+        groupFilterRow.addView(groupSuperFilterButton, superParams);
 
         LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(44));
@@ -505,6 +510,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         clearSearchButton.setOnClickListener(v -> searchInput.setText(""));
         groupOpFilterButton.setOnClickListener(v -> toggleGroupTypeFilter("OP"));
         groupEdFilterButton.setOnClickListener(v -> toggleGroupTypeFilter("ED"));
+        groupSuperFilterButton.setOnClickListener(v -> toggleGroupTypeFilter("SUPER"));
         alphabetIndex.setOnLetterSelectedListener(this::jumpToLetter);
         topPlayedButton.setOnClickListener(v -> openTopPlayed());
         infoSettingsButton.setOnClickListener(v -> openInfoSettings());
@@ -1735,6 +1741,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
                 && libraryMode == MODE_GENRES && leadingYear(group.name) >= 0;
         boolean numericPlaylist = group.playlistGroup && startsWithDigit(group.name);
         groupTypeFiltersEnabled = numericAnimeSeason || numericPlaylist;
+        groupSuperFilterButton.setVisibility(numericAnimeSeason ? View.VISIBLE : View.GONE);
         groupTypeFilter = "";
         groupTitle = group.name;
         groupBaseSongs.clear();
@@ -1794,6 +1801,8 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
 
     private void toggleGroupTypeFilter(String type) {
         if (!groupTypeFiltersEnabled) return;
+        if ("SUPER".equals(type)
+                && (libraryMode != MODE_GENRES || leadingYear(groupTitle) < 0 || playlistDetailOpen)) return;
         groupTypeFilter = type.equals(groupTypeFilter) ? "" : type;
         updateGroupFilterButtons();
         String query = groupSearchEnabled ? searchInput.getText().toString() : "";
@@ -1803,6 +1812,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private void updateGroupFilterButtons() {
         styleGroupFilterButton(groupOpFilterButton, "OP".equals(groupTypeFilter));
         styleGroupFilterButton(groupEdFilterButton, "ED".equals(groupTypeFilter));
+        styleGroupFilterButton(groupSuperFilterButton, "SUPER".equals(groupTypeFilter));
     }
 
     private void styleGroupFilterButton(Button button, boolean selected) {
@@ -1818,8 +1828,12 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         visibleGroups.clear();
         visibleSongs.clear();
         for (Song song : groupBaseSongs) {
-            if (!TextUtils.isEmpty(groupTypeFilter)
-                    && !albumMatchesType(song, groupTypeFilter)) continue;
+            if (!TextUtils.isEmpty(groupTypeFilter)) {
+                boolean typeMatches = "SUPER".equals(groupTypeFilter)
+                        ? albumMatchesSuperSeason(song, groupTitle)
+                        : albumMatchesType(song, groupTypeFilter);
+                if (!typeMatches) continue;
+            }
             if (!query.isEmpty()
                     && !SearchMatcher.matches(song.title, query, directQuote)
                     && !SearchMatcher.matches(song.artist, query, directQuote)
@@ -1830,8 +1844,14 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         randomPlayButton.setVisibility(visibleSongs.isEmpty() ? View.GONE : View.VISIBLE);
         int shown = visibleSongs.size();
         int total = groupBaseSongs.size();
-        titleText.setText((query.isEmpty() && TextUtils.isEmpty(groupTypeFilter))
-                ? groupTitle : groupTitle + " · " + shown + "/" + total);
+        String superTitle = "SUPER".equals(groupTypeFilter) ? superSeasonLabel(groupTitle) : null;
+        if (!TextUtils.isEmpty(superTitle) && query.isEmpty()) {
+            titleText.setText(superTitle);
+        } else {
+            String baseTitle = TextUtils.isEmpty(superTitle) ? groupTitle : superTitle;
+            titleText.setText((query.isEmpty() && TextUtils.isEmpty(groupTypeFilter))
+                    ? groupTitle : baseTitle + " · " + shown + "/" + total);
+        }
         adapter.notifyDataSetChanged();
         scrollLibraryToTop();
     }
@@ -1845,6 +1865,41 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         String album = SearchMatcher.normalize(song.album).replaceAll("[^a-z0-9]+", " ").trim();
         String padded = " " + album + " ";
         return padded.contains(" " + type.toLowerCase(Locale.ROOT) + " ");
+    }
+
+    private static String superSeasonLabel(String seasonName) {
+        int year = leadingYear(seasonName);
+        if (year < 0 || TextUtils.isEmpty(seasonName)) return null;
+        int underscore = seasonName.indexOf('_', 4);
+        if (underscore < 0 || underscore + 1 >= seasonName.length()) return null;
+        int end = underscore + 1;
+        while (end < seasonName.length() && Character.isDigit(seasonName.charAt(end))) end++;
+        if (end == underscore + 1) return null;
+        try {
+            int season = Integer.parseInt(seasonName.substring(underscore + 1, end));
+            return "Dec " + (year % 10) + "." + season;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private static boolean albumMatchesSuperSeason(Song song, String seasonName) {
+        if (song == null || TextUtils.isEmpty(song.album)) return false;
+        String label = superSeasonLabel(seasonName);
+        if (TextUtils.isEmpty(label)) return false;
+        String album = song.album.toLowerCase(Locale.ROOT);
+        String needle = label.toLowerCase(Locale.ROOT);
+        int from = 0;
+        while (from <= album.length() - needle.length()) {
+            int index = album.indexOf(needle, from);
+            if (index < 0) return false;
+            int end = index + needle.length();
+            boolean leftBoundary = index == 0 || !Character.isLetterOrDigit(album.charAt(index - 1));
+            boolean rightBoundary = end >= album.length() || !Character.isDigit(album.charAt(end));
+            if (leftBoundary && rightBoundary) return true;
+            from = index + 1;
+        }
+        return false;
     }
 
     private void resetGroupSearchUi() {
