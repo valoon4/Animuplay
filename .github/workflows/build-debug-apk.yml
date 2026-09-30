@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   build-debug-apk:
-    name: Build v0.15.3 Animuplay Debug APK
+    name: Build v0.15.4 Animuplay Debug APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -77,14 +77,15 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/Animuplay-v0.15.3-debug.apk
-          sha256sum dist/Animuplay-v0.15.3-debug.apk > dist/Animuplay-v0.15.3-debug.apk.sha256
+          cp app/build/outputs/apk/debug/app-debug.apk dist/Animuplay-v0.15.4-debug.apk
+          sha256sum dist/Animuplay-v0.15.4-debug.apk > dist/Animuplay-v0.15.4-debug.apk.sha256
           cp apksigner-report.txt dist/apksigner-report.txt
           {
-            echo "Animuplay v0.15.3 debug"
+            echo "Animuplay v0.15.4 debug"
             echo "Git commit: $GITHUB_SHA"
             echo "Fix: top-level Android Back moves task to background instead of finishing activity"
             echo "Player: show current queue position in the existing season/seekbar gap, e.g. 7/50"
+            echo "Player: hide the mini player while Aktuelle Wiedergabe is open"
             echo "UI: move music-folder action from top bar into Infos & Einstellungen"
             echo "Playback: song, queue, MediaSession and notification continue after top-level Back"
             echo "Stop: explicit X/stop action remains the playback shutdown path"
@@ -104,7 +105,7 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: Animuplay-v0.15.3-debug
+          name: Animuplay-v0.15.4-debug
           path: dist/
           if-no-files-found: error
           retention-days: 30

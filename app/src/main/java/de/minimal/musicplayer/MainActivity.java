@@ -329,6 +329,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         playerGenre = findViewById(R.id.playerGenre);
         playerQueuePosition = new TextView(this);
         playerQueuePosition.setGravity(Gravity.CENTER);
+        playerQueuePosition.setIncludeFontPadding(false);
         playerQueuePosition.setSingleLine(true);
         playerQueuePosition.setTextColor(getColor(R.color.text_secondary));
         playerQueuePosition.setTextSize(14f);
@@ -2203,6 +2204,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         otherPanel.setVisibility(View.GONE);
         randomPlayButton.setVisibility(View.GONE);
         playerPanel.setVisibility(View.VISIBLE);
+        miniPlayer.setVisibility(View.GONE);
         backButton.setVisibility(View.VISIBLE);
         titleText.setText("Aktuelle Wiedergabe");
         updatePlayerMetadata();
@@ -2238,6 +2240,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             playerPanel.setVisibility(View.GONE);
             libraryList.setVisibility(View.VISIBLE);
             selectTab(libraryMode);
+            if (currentSong != null) miniPlayer.setVisibility(View.VISIBLE);
             return;
         }
         if (playlistDetailOpen) {
@@ -2354,7 +2357,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         try {
             createdPlayer.setDataSource(this, song.uri);
             createdPlayer.prepareAsync();
-            miniPlayer.setVisibility(View.VISIBLE);
+            miniPlayer.setVisibility(playerOpen ? View.GONE : View.VISIBLE);
             refreshInsets();
             updatePlayerMetadata();
             updatePlayButtons();
@@ -2500,7 +2503,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             int right = playerPanel.getWidth() - playerPanel.getPaddingRight();
             int width = Math.max(1, right - left);
             int height = dp(20);
-            int top = anchor.getBottom() + dp(2);
+            int top = anchor.getBottom() - dp(2);
 
             playerQueuePosition.measure(
                     View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
