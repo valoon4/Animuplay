@@ -327,7 +327,13 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         playerAlbum = findViewById(R.id.playerAlbum);
         playerTrackNumber = findViewById(R.id.playerTrackNumber);
         playerGenre = findViewById(R.id.playerGenre);
-        playerQueuePosition = findViewById(R.id.playerQueuePosition);
+        playerQueuePosition = new TextView(this);
+        playerQueuePosition.setGravity(Gravity.CENTER);
+        playerQueuePosition.setSingleLine(true);
+        playerQueuePosition.setTextColor(getColor(R.color.text_secondary));
+        playerQueuePosition.setTextSize(14f);
+        playerQueuePosition.setVisibility(View.GONE);
+        playerPanel.getOverlay().add(playerQueuePosition);
         artwork = findViewById(R.id.artwork);
         seekBar = findViewById(R.id.seekBar);
         currentTime = findViewById(R.id.currentTime);
@@ -2462,16 +2468,35 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             playerGenre.setText(genre);
             playerGenre.setVisibility(View.VISIBLE);
         }
-        if (currentQueueIndex >= 0 && currentQueueIndex < playQueue.size()) {
-            playerQueuePosition.setText((currentQueueIndex + 1) + "/" + playQueue.size());
-            playerQueuePosition.setVisibility(View.VISIBLE);
-        } else {
-            playerQueuePosition.setText("");
-            playerQueuePosition.setVisibility(View.GONE);
-        }
+        updatePlayerQueuePosition();
         totalTime.setText(formatDuration(currentSong.durationMs));
         updateSystemMetadata(null);
         loadArtwork(currentSong);
+    }
+
+    private void updatePlayerQueuePosition() {
+        if (playerQueuePosition == null || playerPanel == null || playQueue.isEmpty()
+                || currentQueueIndex < 0 || currentQueueIndex >= playQueue.size()) {
+            if (playerQueuePosition != null) playerQueuePosition.setVisibility(View.GONE);
+            return;
+        }
+        playerQueuePosition.setText((currentQueueIndex + 1) + "/" + playQueue.size());
+        playerQueuePosition.setVisibility(View.GONE);
+        playerPanel.post(() -> {
+            if (playerQueuePosition == null || playerPanel.getVisibility() != View.VISIBLE
+                    || playQueue.isEmpty() || currentQueueIndex < 0
+                    || currentQueueIndex >= playQueue.size()) {
+                if (playerQueuePosition != null) playerQueuePosition.setVisibility(View.GONE);
+                return;
+            }
+            View anchor = playerGenre.getVisibility() == View.VISIBLE
+                    ? playerGenre
+                    : (playerTrackNumber.getVisibility() == View.VISIBLE ? playerTrackNumber : playerAlbum);
+            int top = anchor.getBottom() + dp(2);
+            int height = dp(20);
+            playerQueuePosition.layout(0, top, playerPanel.getWidth(), top + height);
+            playerQueuePosition.setVisibility(View.VISIBLE);
+        });
     }
 
     private void configureMarquee(TextView view) {

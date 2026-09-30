@@ -497,22 +497,11 @@
                 android:textSize="14sp"
                 android:visibility="gone" />
 
-            <TextView
-                android:id="@+id/playerQueuePosition"
-                android:layout_width="match_parent"
-                android:layout_height="18dp"
-                android:layout_marginTop="2dp"
-                android:gravity="center"
-                android:singleLine="true"
-                android:textColor="@color/text_secondary"
-                android:textSize="14sp"
-                android:visibility="gone" />
-
             <SeekBar
                 android:id="@+id/seekBar"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="26dp"
                 android:progressTint="@color/accent"
                 android:thumbTint="@color/accent" />
 
