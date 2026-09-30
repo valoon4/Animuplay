@@ -12,7 +12,7 @@ Bug reports and feature requests: GitHub Issues in `valoon4/Animuplay`
 
 ## Current development version
 
-`0.15.0-debug` (`versionCode 28`)
+`0.16.0-debug` (`versionCode 29`)
 
 This is a feature-frozen pre-release/debug line before the later v1.0 branding and release-signing pass. The fixed debug signing key in the repository is intentionally public so existing test installs can update in place. It is **not** a release key and must never be used for a public production release.
 
@@ -29,6 +29,7 @@ This is a feature-frozen pre-release/debug line before the later v1.0 branding a
 - Year reader supports common MP3 ID3 and FLAC Vorbis year/date fields.
 - Normal substring search over album, song title and artist, plus a leading-quote direct mode: for example `"K ED` performs a case-sensitive exact substring search without requiring a closing quote.
 - OP/ED filtering for numeric anime Seasons and numeric playlist names.
+- SUPER filtering for numeric anime Seasons, matching the season-derived `Dec Y.S` marker in album names (for example `2026_2.Spring` → `Dec 6.2`).
 - Recursive `.m3u` / `.m3u8` import with Windows paths, relative paths, URI decoding, Unicode, duplicates and missing-entry counts.
 - **Playlists prüfen** re-checks any imported playlist on demand, lists only entries that cannot be matched, and keeps a persistent green verification check until that playlist file changes on a later library scan.
 - Imported playlists and music metadata are cached so a normal launch does not walk the full music tree.
