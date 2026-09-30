@@ -147,6 +147,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private TextView playerAlbum;
     private TextView playerTrackNumber;
     private TextView playerGenre;
+    private TextView playerQueuePosition;
     private ImageView artwork;
     private SeekBar seekBar;
     private TextView currentTime;
@@ -327,6 +328,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         playerAlbum = findViewById(R.id.playerAlbum);
         playerTrackNumber = findViewById(R.id.playerTrackNumber);
         playerGenre = findViewById(R.id.playerGenre);
+        playerQueuePosition = findViewById(R.id.playerQueuePosition);
         artwork = findViewById(R.id.artwork);
         seekBar = findViewById(R.id.seekBar);
         currentTime = findViewById(R.id.currentTime);
@@ -2515,6 +2517,13 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             playerGenre.setText(genre);
             playerGenre.setVisibility(View.VISIBLE);
         }
+        if (currentQueueIndex >= 0 && currentQueueIndex < playQueue.size() && !playQueue.isEmpty()) {
+            playerQueuePosition.setText((currentQueueIndex + 1) + "/" + playQueue.size());
+            playerQueuePosition.setVisibility(View.VISIBLE);
+        } else {
+            playerQueuePosition.setText("");
+            playerQueuePosition.setVisibility(View.GONE);
+        }
         totalTime.setText(formatDuration(currentSong.durationMs));
         updateSystemMetadata(null);
         loadArtwork(currentSong);
@@ -2680,6 +2689,10 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         if (playerGenre != null) {
             playerGenre.setText("");
             playerGenre.setVisibility(View.GONE);
+        }
+        if (playerQueuePosition != null) {
+            playerQueuePosition.setText("");
+            playerQueuePosition.setVisibility(View.GONE);
         }
         if (mediaSession != null) {
             long actions = PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PLAY_PAUSE;
