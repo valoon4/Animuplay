@@ -329,7 +329,6 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         playerGenre = findViewById(R.id.playerGenre);
         playerQueuePosition = new TextView(this);
         playerQueuePosition.setGravity(Gravity.CENTER);
-        playerQueuePosition.setIncludeFontPadding(false);
         playerQueuePosition.setSingleLine(true);
         playerQueuePosition.setTextColor(getColor(R.color.text_secondary));
         playerQueuePosition.setTextSize(14f);
@@ -1280,6 +1279,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         if (searchInput != null) searchInput.setHint("Titel, Interpret oder Album suchen");
         playerOpen = false;
         playerPanel.setVisibility(View.GONE);
+        if (playerRepeat != null) playerRepeat.setVisibility(View.GONE);
         scanningState.setVisibility(View.GONE);
         otherPanel.setVisibility(View.GONE);
         if (infoSettingsPanel != null) infoSettingsPanel.setVisibility(View.GONE);
@@ -2206,6 +2206,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         playerPanel.setVisibility(View.VISIBLE);
         miniPlayer.setVisibility(View.GONE);
         backButton.setVisibility(View.VISIBLE);
+        playerRepeat.setVisibility(View.VISIBLE);
         titleText.setText("Aktuelle Wiedergabe");
         updatePlayerMetadata();
         refreshInsets();
@@ -2503,7 +2504,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             int right = playerPanel.getWidth() - playerPanel.getPaddingRight();
             int width = Math.max(1, right - left);
             int height = dp(20);
-            int top = anchor.getBottom() - dp(2);
+            int top = anchor.getBottom() + dp(2);
 
             playerQueuePosition.measure(
                     View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
@@ -2665,6 +2666,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         playerOpen = false;
         miniPlayer.setVisibility(View.GONE);
         playerPanel.setVisibility(View.GONE);
+        if (playerRepeat != null) playerRepeat.setVisibility(View.GONE);
         seekBar.setProgress(0);
         currentTime.setText("0:00");
         totalTime.setText("0:00");

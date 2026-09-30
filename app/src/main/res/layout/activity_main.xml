@@ -41,6 +41,17 @@
             android:textSize="20sp"
             android:textStyle="bold" />
 
+        <Button
+            android:id="@+id/playerRepeat"
+            android:layout_width="48dp"
+            android:layout_height="44dp"
+            android:background="@android:color/transparent"
+            android:contentDescription="Titel-Wiederholung einschalten"
+            android:text="1"
+            android:textColor="@color/text_secondary"
+            android:textSize="18sp"
+            android:visibility="gone" />
+
     </LinearLayout>
 
     <LinearLayout
@@ -533,16 +544,6 @@
                 android:layout_marginTop="16dp"
                 android:gravity="center"
                 android:orientation="horizontal">
-
-                <Button
-                    android:id="@+id/playerRepeat"
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
-                    android:background="@android:color/transparent"
-                    android:contentDescription="Titel-Wiederholung einschalten"
-                    android:text="1"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="18sp" />
 
                 <Button
                     android:id="@+id/playerPrev"
