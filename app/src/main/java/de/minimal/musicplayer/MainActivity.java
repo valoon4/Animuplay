@@ -332,7 +332,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         playerQueuePosition.setSingleLine(true);
         playerQueuePosition.setTextColor(getColor(R.color.text_secondary));
         playerQueuePosition.setTextSize(14f);
-        playerQueuePosition.setVisibility(View.GONE);
+        playerQueuePosition.setVisibility(View.INVISIBLE);
         playerPanel.getOverlay().add(playerQueuePosition);
         artwork = findViewById(R.id.artwork);
         seekBar = findViewById(R.id.seekBar);
@@ -2477,25 +2477,38 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private void updatePlayerQueuePosition() {
         if (playerQueuePosition == null || playerPanel == null || playQueue.isEmpty()
                 || currentQueueIndex < 0 || currentQueueIndex >= playQueue.size()) {
-            if (playerQueuePosition != null) playerQueuePosition.setVisibility(View.GONE);
+            if (playerQueuePosition != null) playerQueuePosition.setVisibility(View.INVISIBLE);
             return;
         }
+
         playerQueuePosition.setText((currentQueueIndex + 1) + "/" + playQueue.size());
-        playerQueuePosition.setVisibility(View.GONE);
+        playerQueuePosition.setVisibility(View.INVISIBLE);
+
         playerPanel.post(() -> {
             if (playerQueuePosition == null || playerPanel.getVisibility() != View.VISIBLE
                     || playQueue.isEmpty() || currentQueueIndex < 0
                     || currentQueueIndex >= playQueue.size()) {
-                if (playerQueuePosition != null) playerQueuePosition.setVisibility(View.GONE);
+                if (playerQueuePosition != null) playerQueuePosition.setVisibility(View.INVISIBLE);
                 return;
             }
+
             View anchor = playerGenre.getVisibility() == View.VISIBLE
                     ? playerGenre
                     : (playerTrackNumber.getVisibility() == View.VISIBLE ? playerTrackNumber : playerAlbum);
-            int top = anchor.getBottom() + dp(2);
+
+            int left = playerPanel.getPaddingLeft();
+            int right = playerPanel.getWidth() - playerPanel.getPaddingRight();
+            int width = Math.max(1, right - left);
             int height = dp(20);
-            playerQueuePosition.layout(0, top, playerPanel.getWidth(), top + height);
+            int top = anchor.getBottom() + dp(2);
+
+            playerQueuePosition.measure(
+                    View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
+            playerQueuePosition.layout(left, top, right, top + height);
             playerQueuePosition.setVisibility(View.VISIBLE);
+            playerQueuePosition.invalidate();
+            playerPanel.invalidate();
         });
     }
 
@@ -2662,7 +2675,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         }
         if (playerQueuePosition != null) {
             playerQueuePosition.setText("");
-            playerQueuePosition.setVisibility(View.GONE);
+            playerQueuePosition.setVisibility(View.INVISIBLE);
         }
         if (mediaSession != null) {
             long actions = PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PLAY_PAUSE;

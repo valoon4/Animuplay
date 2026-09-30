@@ -12,7 +12,7 @@ Bug reports and feature requests: GitHub Issues in `valoon4/Animuplay`
 
 ## Current development version
 
-`0.15.2-debug` (`versionCode 32`)
+`0.15.3-debug` (`versionCode 33`)
 
 This is a feature-frozen pre-release/debug line before the later v1.0 branding and release-signing pass. The fixed debug signing key in the repository is intentionally public so existing test installs can update in place. It is **not** a release key and must never be used for a public production release.
 
@@ -36,7 +36,8 @@ This is a feature-frozen pre-release/debug line before the later v1.0 branding a
 - Repeat-one, previous/next, random playback, Audio Focus, MediaSession, lock-screen progress and media controls.
 - Embedded album artwork where available.
 - Long-press the artwork in **Aktuelle Wiedergabe** to share the actual MP3/FLAC file through Android's system share sheet.
-- **Aktuelle Wiedergabe** shows the current queue position in the existing spacing below the season metadata, for example `7/50`, without changing the original player layout.
+- **Aktuelle Wiedergabe** shows the current queue position in the existing gap below the season metadata, for example `7/50`, without adding layout height.
+- Music-folder selection lives under **Infos & Einstellungen** instead of the top-right app bar.
 - Play counts increase only after more than 50% was actually listened to; seeking past the threshold does not count.
 - Portable play history remains at the legacy-compatible `MinimalMusicPlayer/profile.json` path inside the selected music root, with internal fallback.
 - Hierarchical Android Back handling returns from player/group/playlist/detail screens first; top-level Back moves Animuplay to the background so playback, queue and media notification keep running.
