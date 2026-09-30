@@ -500,7 +500,7 @@
             <TextView
                 android:id="@+id/playerQueuePosition"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="18dp"
                 android:layout_marginTop="2dp"
                 android:gravity="center"
                 android:singleLine="true"
@@ -512,7 +512,7 @@
                 android:id="@+id/seekBar"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="26dp"
+                android:layout_marginTop="6dp"
                 android:progressTint="@color/accent"
                 android:thumbTint="@color/accent" />
 
