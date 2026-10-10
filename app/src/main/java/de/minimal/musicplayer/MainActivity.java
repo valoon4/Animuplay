@@ -73,6 +73,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private static final String ACTION_PLAY_PAUSE = "de.minimal.musicplayer.PLAY_PAUSE";
     private static final String ACTION_NEXT = "de.minimal.musicplayer.NEXT";
     private static final String ACTION_STOP = "de.minimal.musicplayer.STOP";
+    private static final String ACTION_REPEAT_ONE = "de.minimal.musicplayer.REPEAT_ONE";
     private static WeakReference<MainActivity> activeInstance = new WeakReference<>(null);
 
     private static final int MODE_SONGS = 0;
@@ -187,6 +188,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private int lastPlaybackPositionMs;
     private String searchQuery = "";
     private String groupTypeFilter = "";
+    private String seasonTypeFilter = "";
     private String groupTitle = "";
     private String seasonCategory = "ANIME";
     private Uri currentTreeUri;
@@ -395,6 +397,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private void setSeasonCategory(String category) {
         if (libraryMode != MODE_GENRES || groupOpen || playerOpen) return;
         seasonCategory = "RL".equals(category) ? "RL" : "ANIME";
+        seasonTypeFilter = "";
         if (!TextUtils.isEmpty(searchInput.getText())) {
             searchInput.setText("");
             hideSearchKeyboard();
@@ -404,6 +407,9 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         visibleGroups.clear();
         visibleGroups.addAll(buildSeasonGroupsForCategory());
         updateSeasonModeButtons();
+        groupFilterRow.setVisibility("ANIME".equals(seasonCategory) ? View.VISIBLE : View.GONE);
+        updateGroupFilterButtons();
+        randomPlayButton.setVisibility(visibleGroups.isEmpty() ? View.GONE : View.VISIBLE);
         adapter.notifyDataSetChanged();
         updateAlphabetVisibility();
         scrollLibraryToTop();
@@ -412,6 +418,11 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private void updateSeasonModeButtons() {
         styleGroupFilterButton(seasonAnimeButton, "ANIME".equals(seasonCategory));
         styleGroupFilterButton(seasonRlButton, "RL".equals(seasonCategory));
+    }
+
+    private boolean isSeasonTopLevelFilterContext() {
+        return libraryMode == MODE_GENRES && !groupOpen && !playerOpen
+                && "ANIME".equals(seasonCategory);
     }
 
     private void loadCachedLibraryOrScan(Uri treeUri) {
@@ -587,6 +598,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         miniRepeat.setOnClickListener(v -> toggleRepeatOne());
         playerPlay.setOnClickListener(v -> togglePlayback());
         playerRepeat.setOnClickListener(v -> toggleRepeatOne());
+        playerGenre.setOnClickListener(v -> openCurrentSongSeason());
         findViewById(R.id.miniPrev).setOnClickListener(v -> previousSong());
         findViewById(R.id.miniNext).setOnClickListener(v -> nextSong());
         findViewById(R.id.playerPrev).setOnClickListener(v -> previousSong());
@@ -689,7 +701,11 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             }); }
             @Override public void onStop() { mainHandler.post(MainActivity.this::stopPlaybackAndDismiss); }
             @Override public void onCustomAction(String action, Bundle extras) {
-                if (ACTION_STOP.equals(action)) mainHandler.post(MainActivity.this::stopPlaybackAndDismiss);
+                if (ACTION_STOP.equals(action)) {
+                    mainHandler.post(MainActivity.this::stopPlaybackAndDismiss);
+                } else if (ACTION_REPEAT_ONE.equals(action)) {
+                    mainHandler.post(MainActivity.this::toggleRepeatOne);
+                }
             }
         });
         mediaSession.setActive(true);
@@ -739,6 +755,10 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
                 .setActions(actions)
                 .addCustomAction(new PlaybackState.CustomAction.Builder(
                         ACTION_STOP, "Beenden", R.drawable.ic_close).build())
+                .addCustomAction(new PlaybackState.CustomAction.Builder(
+                        ACTION_REPEAT_ONE,
+                        repeatOne ? "Titel-Wiederholung ausschalten" : "Titel-Wiederholung einschalten",
+                        R.drawable.ic_repeat_one).build())
                 .setState(state, position, playing ? 1f : 0f, SystemClock.elapsedRealtime())
                 .build());
     }
@@ -760,6 +780,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         PendingIntent previous = playbackPendingIntent(ACTION_PREVIOUS, 1);
         PendingIntent playPause = playbackPendingIntent(ACTION_PLAY_PAUSE, 2);
         PendingIntent next = playbackPendingIntent(ACTION_NEXT, 3);
+        PendingIntent repeat = playbackPendingIntent(ACTION_REPEAT_ONE, 6);
         PendingIntent stop = playbackPendingIntent(ACTION_STOP, 5);
         Intent contentIntent = new Intent(this, MainActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -787,6 +808,8 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
                         "Wiedergabe beenden", stop))
                 .addAction(new Notification.Action(android.R.drawable.ic_media_next,
                         "Weiter", next))
+                .addAction(new Notification.Action(R.drawable.ic_repeat_one,
+                        repeatOne ? "Titel-Wiederholung aus" : "Titel-Wiederholung an", repeat))
                 .setStyle(new Notification.MediaStyle()
                         .setMediaSession(mediaSession.getSessionToken())
                         // X is intentionally one of the three compact actions so Samsung/Android
@@ -809,6 +832,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             else if (ACTION_PLAY_PAUSE.equals(action)) activity.togglePlayback();
             else if (ACTION_NEXT.equals(action)) activity.nextSong();
             else if (ACTION_STOP.equals(action)) activity.stopPlaybackAndDismiss();
+            else if (ACTION_REPEAT_ONE.equals(action)) activity.toggleRepeatOne();
         });
     }
 
@@ -826,6 +850,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         else if (ACTION_PLAY_PAUSE.equals(action)) togglePlayback();
         else if (ACTION_NEXT.equals(action)) nextSong();
         else if (ACTION_STOP.equals(action)) stopPlaybackAndDismiss();
+        else if (ACTION_REPEAT_ONE.equals(action)) toggleRepeatOne();
         intent.setAction(null);
     }
 
@@ -1328,15 +1353,17 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             randomPlayButton.setVisibility(View.VISIBLE);
         } else if (mode == MODE_ALBUMS) {
             visibleGroups.addAll(buildGroups(true));
-            randomPlayButton.setVisibility(View.GONE);
+            randomPlayButton.setVisibility(visibleGroups.isEmpty() ? View.GONE : View.VISIBLE);
         } else if (mode == MODE_GENRES) {
             visibleGroups.addAll(buildSeasonGroupsForCategory());
             seasonModeRow.setVisibility(View.VISIBLE);
             updateSeasonModeButtons();
-            randomPlayButton.setVisibility(View.GONE);
+            groupFilterRow.setVisibility("ANIME".equals(seasonCategory) ? View.VISIBLE : View.GONE);
+            updateGroupFilterButtons();
+            randomPlayButton.setVisibility(visibleGroups.isEmpty() ? View.GONE : View.VISIBLE);
         } else if (mode == MODE_YEARS) {
             visibleGroups.addAll(buildYearGroups());
-            randomPlayButton.setVisibility(View.GONE);
+            randomPlayButton.setVisibility(visibleGroups.isEmpty() ? View.GONE : View.VISIBLE);
         }
         adapter.notifyDataSetChanged();
         updateAlphabetVisibility();
@@ -1802,6 +1829,11 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     }
 
     private void toggleGroupTypeFilter(String type) {
+        if (isSeasonTopLevelFilterContext()) {
+            seasonTypeFilter = type.equals(seasonTypeFilter) ? "" : type;
+            updateGroupFilterButtons();
+            return;
+        }
         if (!groupTypeFiltersEnabled) return;
         groupTypeFilter = type.equals(groupTypeFilter) ? "" : type;
         updateGroupFilterButtons();
@@ -1810,8 +1842,9 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     }
 
     private void updateGroupFilterButtons() {
-        styleGroupFilterButton(groupOpFilterButton, "OP".equals(groupTypeFilter));
-        styleGroupFilterButton(groupEdFilterButton, "ED".equals(groupTypeFilter));
+        String activeFilter = isSeasonTopLevelFilterContext() ? seasonTypeFilter : groupTypeFilter;
+        styleGroupFilterButton(groupOpFilterButton, "OP".equals(activeFilter));
+        styleGroupFilterButton(groupEdFilterButton, "ED".equals(activeFilter));
     }
 
     private void styleGroupFilterButton(Button button, boolean selected) {
@@ -2302,15 +2335,40 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     }
 
     private void playCurrentListRandomly() {
-        List<Song> source = !TextUtils.isEmpty(searchQuery) && !groupOpen
-                ? searchPlayableSongs : visibleSongs;
-        if (source.isEmpty()) return;
+        ArrayList<Song> source = new ArrayList<>();
+        if (!TextUtils.isEmpty(searchQuery) && !groupOpen) {
+            source.addAll(searchPlayableSongs);
+        } else if (!visibleSongs.isEmpty()) {
+            source.addAll(visibleSongs);
+        } else {
+            for (GroupRow group : visibleGroups) {
+                for (Song song : group.songs) {
+                    if (isSeasonTopLevelFilterContext()
+                            && !TextUtils.isEmpty(seasonTypeFilter)
+                            && !albumMatchesType(song, seasonTypeFilter)) {
+                        continue;
+                    }
+                    if (!source.contains(song)) source.add(song);
+                }
+            }
+        }
+        if (source.isEmpty()) {
+            Toast.makeText(this,
+                    isSeasonTopLevelFilterContext() && !TextUtils.isEmpty(seasonTypeFilter)
+                            ? "Keine " + seasonTypeFilter + "-Titel in Anime-Seasons gefunden."
+                            : "Keine Titel für Zufallswiedergabe gefunden.",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
         playQueue.clear();
         playQueue.addAll(source);
         Collections.shuffle(playQueue);
         currentQueueIndex = 0;
         playSong(playQueue.get(0));
-        Toast.makeText(this, "Zufallswiedergabe: " + playQueue.size() + " Titel", Toast.LENGTH_SHORT).show();
+        String suffix = isSeasonTopLevelFilterContext() && !TextUtils.isEmpty(seasonTypeFilter)
+                ? " · " + seasonTypeFilter : "";
+        Toast.makeText(this, "Zufallswiedergabe: " + playQueue.size() + " Titel" + suffix,
+                Toast.LENGTH_SHORT).show();
     }
 
     private void playSongFromList(List<Song> source, int index) {
@@ -2389,6 +2447,7 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             catch (IllegalStateException ignored) { }
         }
         updateRepeatButtons();
+        updatePlayButtons();
         Toast.makeText(this, repeatOne ? "Titel-Wiederholung an" : "Titel-Wiederholung aus",
                 Toast.LENGTH_SHORT).show();
     }
@@ -2448,6 +2507,28 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         playerPlay.setText(icon);
         updateSystemPlaybackState(playing);
         updateMediaNotification(playing);
+    }
+
+    private void openCurrentSongSeason() {
+        if (currentSong == null) return;
+        String season = currentSong.genre == null ? "" : currentSong.genre.trim();
+        if (season.isEmpty() || "Unbekannt".equalsIgnoreCase(season)) return;
+
+        seasonCategory = isAnimeSeasonName(season) ? "ANIME" : "RL";
+        seasonTypeFilter = "";
+        selectTab(MODE_GENRES);
+
+        for (GroupRow group : buildSeasonGroupsForCategory()) {
+            if (season.equalsIgnoreCase(group.name)) {
+                openGroup(group);
+                return;
+            }
+        }
+        Toast.makeText(this, "Season nicht gefunden: " + season, Toast.LENGTH_SHORT).show();
+    }
+
+    private static boolean isAnimeSeasonName(String name) {
+        return leadingYear(name) >= 0 || "OST".equalsIgnoreCase(name == null ? "" : name.trim());
     }
 
     private void updatePlayerMetadata() {
