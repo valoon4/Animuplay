@@ -753,8 +753,9 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
                 | PlaybackState.ACTION_STOP;
         mediaSession.setPlaybackState(new PlaybackState.Builder()
                 .setActions(actions)
-                .addCustomAction(new PlaybackState.CustomAction.Builder(
-                        ACTION_STOP, "Beenden", R.drawable.ic_close).build())
+                // ACTION_STOP is already a standard transport action. Registering a
+                // second custom X consumed one of Samsung/SystemUI's custom slots and
+                // pushed Repeat-One out of the visible controls.
                 .addCustomAction(new PlaybackState.CustomAction.Builder(
                         ACTION_REPEAT_ONE,
                         repeatOne ? "Titel-Wiederholung ausschalten" : "Titel-Wiederholung einschalten",
