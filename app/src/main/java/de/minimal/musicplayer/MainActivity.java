@@ -1293,6 +1293,9 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         playerOpen = false;
         playerPanel.setVisibility(View.GONE);
         if (playerRepeat != null) playerRepeat.setVisibility(View.GONE);
+        // The full player hides the mini player. Restore it whenever a song
+        // is loaded and the library becomes visible (e.g. after opening a season).
+        miniPlayer.setVisibility(currentSong == null ? View.GONE : View.VISIBLE);
         scanningState.setVisibility(View.GONE);
         otherPanel.setVisibility(View.GONE);
         if (infoSettingsPanel != null) infoSettingsPanel.setVisibility(View.GONE);
