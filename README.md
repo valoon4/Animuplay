@@ -12,7 +12,7 @@ Bug reports and feature requests: GitHub Issues in `valoon4/Animuplay`
 
 ## Current development version
 
-`0.15.5-debug` (`versionCode 35`)
+`0.15.8-debug` (`versionCode 38`)
 
 This is a feature-frozen pre-release/debug line before the later v1.0 branding and release-signing pass. The fixed debug signing key in the repository is intentionally public so existing test installs can update in place. It is **not** a release key and must never be used for a public production release.
 
@@ -33,7 +33,7 @@ This is a feature-frozen pre-release/debug line before the later v1.0 branding a
 - **Playlists prüfen** re-checks any imported playlist on demand, lists only entries that cannot be matched, and keeps a persistent green verification check until that playlist file changes on a later library scan.
 - Imported playlists and music metadata are cached so a normal launch does not walk the full music tree.
 - Playback queue is internal only; no separate queue-management UI.
-- Repeat-one, previous/next, random playback, Audio Focus, MediaSession, lock-screen progress and media controls.
+- Repeat-one inside Animuplay, previous/next, random playback, Audio Focus, MediaSession, lock-screen progress and media controls with an explicit X to stop playback.
 - Embedded album artwork where available.
 - Long-press the artwork in **Aktuelle Wiedergabe** to share the actual MP3/FLAC file through Android's system share sheet.
 - **Aktuelle Wiedergabe** shows the current queue position in the existing gap below the season metadata, for example `7/50`, without adding layout height.

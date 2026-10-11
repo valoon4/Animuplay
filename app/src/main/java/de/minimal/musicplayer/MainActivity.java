@@ -73,7 +73,6 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
     private static final String ACTION_PLAY_PAUSE = "de.minimal.musicplayer.PLAY_PAUSE";
     private static final String ACTION_NEXT = "de.minimal.musicplayer.NEXT";
     private static final String ACTION_STOP = "de.minimal.musicplayer.STOP";
-    private static final String ACTION_REPEAT_ONE = "de.minimal.musicplayer.REPEAT_ONE";
     private static WeakReference<MainActivity> activeInstance = new WeakReference<>(null);
 
     private static final int MODE_SONGS = 0;
@@ -703,8 +702,6 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             @Override public void onCustomAction(String action, Bundle extras) {
                 if (ACTION_STOP.equals(action)) {
                     mainHandler.post(MainActivity.this::stopPlaybackAndDismiss);
-                } else if (ACTION_REPEAT_ONE.equals(action)) {
-                    mainHandler.post(MainActivity.this::toggleRepeatOne);
                 }
             }
         });
@@ -753,13 +750,8 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
                 | PlaybackState.ACTION_STOP;
         mediaSession.setPlaybackState(new PlaybackState.Builder()
                 .setActions(actions)
-                // ACTION_STOP is already a standard transport action. Registering a
-                // second custom X consumed one of Samsung/SystemUI's custom slots and
-                // pushed Repeat-One out of the visible controls.
                 .addCustomAction(new PlaybackState.CustomAction.Builder(
-                        ACTION_REPEAT_ONE,
-                        repeatOne ? "Titel-Wiederholung ausschalten" : "Titel-Wiederholung einschalten",
-                        R.drawable.ic_repeat_one).build())
+                        ACTION_STOP, "Beenden", R.drawable.ic_close).build())
                 .setState(state, position, playing ? 1f : 0f, SystemClock.elapsedRealtime())
                 .build());
     }
@@ -781,7 +773,6 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         PendingIntent previous = playbackPendingIntent(ACTION_PREVIOUS, 1);
         PendingIntent playPause = playbackPendingIntent(ACTION_PLAY_PAUSE, 2);
         PendingIntent next = playbackPendingIntent(ACTION_NEXT, 3);
-        PendingIntent repeat = playbackPendingIntent(ACTION_REPEAT_ONE, 6);
         PendingIntent stop = playbackPendingIntent(ACTION_STOP, 5);
         Intent contentIntent = new Intent(this, MainActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -809,8 +800,6 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
                         "Wiedergabe beenden", stop))
                 .addAction(new Notification.Action(android.R.drawable.ic_media_next,
                         "Weiter", next))
-                .addAction(new Notification.Action(R.drawable.ic_repeat_one,
-                        repeatOne ? "Titel-Wiederholung aus" : "Titel-Wiederholung an", repeat))
                 .setStyle(new Notification.MediaStyle()
                         .setMediaSession(mediaSession.getSessionToken())
                         // X is intentionally one of the three compact actions so Samsung/Android
@@ -833,7 +822,6 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             else if (ACTION_PLAY_PAUSE.equals(action)) activity.togglePlayback();
             else if (ACTION_NEXT.equals(action)) activity.nextSong();
             else if (ACTION_STOP.equals(action)) activity.stopPlaybackAndDismiss();
-            else if (ACTION_REPEAT_ONE.equals(action)) activity.toggleRepeatOne();
         });
     }
 
@@ -851,7 +839,6 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
         else if (ACTION_PLAY_PAUSE.equals(action)) togglePlayback();
         else if (ACTION_NEXT.equals(action)) nextSong();
         else if (ACTION_STOP.equals(action)) stopPlaybackAndDismiss();
-        else if (ACTION_REPEAT_ONE.equals(action)) toggleRepeatOne();
         intent.setAction(null);
     }
 
@@ -2448,7 +2435,6 @@ public final class MainActivity extends Activity implements MediaPlayer.OnComple
             catch (IllegalStateException ignored) { }
         }
         updateRepeatButtons();
-        updatePlayButtons();
         Toast.makeText(this, repeatOne ? "Titel-Wiederholung an" : "Titel-Wiederholung aus",
                 Toast.LENGTH_SHORT).show();
     }
